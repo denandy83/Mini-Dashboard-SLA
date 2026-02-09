@@ -124,7 +124,16 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         return dms < 0 ? `Overdue by ${res.trim()}` : res.trim();
     }
     get searchPlaceholder() { return `Filter ${this.modalData.length}${this.isMoreDataAvailable ? '+' : ''} cases...`; }
-    handleSort(e) { const f = e.currentTarget.dataset.id; if (this.sortedBy === f) this.sortedDirection = this.sortedDirection === 'asc' ? 'desc' : 'asc'; else { this.sortedBy = f; this.sortedDirection = 'asc'; } this.offset = 0; this.modalData = []; this.buildColumns(); this.loadModalData(); }
+    handleSort(e) { 
+        const th = e.currentTarget;
+        const isResizeHandle = (e.clientX - th.getBoundingClientRect().left) > (th.offsetWidth - 20);
+        if (isResizeHandle) return;
+
+        const f = th.dataset.id; 
+        if (this.sortedBy === f) this.sortedDirection = this.sortedDirection === 'asc' ? 'desc' : 'asc'; 
+        else { this.sortedBy = f; this.sortedDirection = 'asc'; } 
+        this.offset = 0; this.modalData = []; this.buildColumns(); this.loadModalData(); 
+    }
     handleSearch(e) { this.searchTerm = e.target.value; this.offset = 0; this.modalData = []; this.loadModalData(); }
     handlePriorityQuickFilter(e) { const v = e.target.value; if (this.priorityFilter.includes(v)) this.priorityFilter = this.priorityFilter.filter(p => p !== v); else this.priorityFilter = [...this.priorityFilter, v]; this.offset = 0; this.loadModalData(); }
     handleHasJiraToggle() { this.hasJiraFilter = !this.hasJiraFilter; this.offset = 0; this.loadModalData(); }
