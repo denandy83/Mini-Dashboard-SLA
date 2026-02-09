@@ -245,7 +245,12 @@ public without sharing class SLADashboardController {
             if (!sf.isEmpty()) whereClauses.add('(' + String.join(sf, ' OR ') + ')');
         }
         if (whereClauses.isEmpty()) query += ' IsClosed = false '; else query += String.join(whereClauses, ' AND ');
-        if (String.isNotBlank(sortField)) { String ss = sortField.replaceAll('[^a-zA-Z0-9._]', ''); String dir = (String.isNotBlank(sortOrder) && sortOrder.toLowerCase() == 'asc' ? 'ASC' : 'DESC'); query += ' ORDER BY ' + ss + ' ' + dir + ' NULLS LAST'; }
+        if (String.isNotBlank(sortField)) { 
+            String ss = sortField.replaceAll('[^a-zA-Z0-9._]', ''); 
+            String dir = (String.isNotBlank(sortOrder) && sortOrder.toLowerCase() == 'asc' ? 'ASC' : 'DESC'); 
+            String nullsOrder = (dir == 'ASC') ? 'NULLS FIRST' : 'NULLS LAST';
+            query += ' ORDER BY ' + ss + ' ' + dir + ' ' + nullsOrder; 
+        }
         else query += ' ORDER BY CreatedDate DESC';
         query += ' LIMIT ' + finalLimit + ' OFFSET ' + finalOffset;
         return Database.query(query);

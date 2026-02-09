@@ -13,6 +13,10 @@
             <property name="pollingFrequency" type="Integer" label="Polling Frequency (seconds)" default="60" />
             <property name="thresholdColor" type="String" label="Alert Color (Hex)" default="#ff0000" />
             <property name="normalColor" type="String" label="Normal Color (Hex)" default="#000000" />
+            <property name="greenThreshold" type="Integer" label="Green Threshold (Hours >)" default="24" description="Cases with more than this many hours left will be Green." />
+            <property name="yellowThreshold" type="Integer" label="Yellow Threshold (Hours >)" default="12" description="Cases with more than this many hours left (but less than Green) will be Yellow." />
+            <property name="orangeThreshold" type="Integer" label="Orange Threshold (Hours >)" default="1" description="Cases with more than this many hours left (but less than Yellow) will be Orange." />
+            <property name="columnFields" type="String" label="Columns (FieldName:Width)" default="CaseNumber:100, RT_Remaining:150, AT_Remaining:150, UoW_Remaining:150, Fx_Remaining:150, Subject, Priority" description="Comma-separated list of fields. Format: FieldName:Width. Default width is 150 for SLA columns." />
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

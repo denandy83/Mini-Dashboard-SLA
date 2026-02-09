@@ -13,13 +13,18 @@
             </div>
             <div class="status-grid">
                 <template for:each={milestoneItems} for:item="item">
-                    <div key={item.id} class="count-wrapper" onclick={handleItemClick} data-id={item.id} title={item.tooltip} style={item.heatmapStyle}>
-                        <div class="count-bar" style="background-color: #E57373;"></div>
-                        <div class="count-label">
-                            <span class="label-full">{item.fullLabel}</span>
-                            <span class="label-short">{item.shortLabel}</span>
-                        </div>
-                        <div class="count-value" style={item.itemStyle}>{item.count}</div>
+                    <div key={item.id} class="gauge-wrapper" onclick={handleItemClick} data-id={item.id} title={item.tooltip}>
+                        <svg viewBox="0 0 40 40" class="gauge-svg">
+                            <circle class="gauge-bg" cx="20" cy="20" r="15.9155"></circle>
+                            <template lwc:if={item.gauge.hasData}>
+                                <circle class="gauge-segment red" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.red.array} stroke-dashoffset={item.gauge.red.offset}></circle>
+                                <circle class="gauge-segment orange" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.orange.array} stroke-dashoffset={item.gauge.orange.offset}></circle>
+                                <circle class="gauge-segment yellow" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.yellow.array} stroke-dashoffset={item.gauge.yellow.offset}></circle>
+                                <circle class="gauge-segment green" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.green.array} stroke-dashoffset={item.gauge.green.offset}></circle>
+                            </template>
+                            <text x="20" y="20" class="gauge-count">{item.count}</text>
+                            <text x="20" y="28" class="gauge-label">{item.shortLabel}</text>
+                        </svg>
                     </div>
                 </template>
             </div>
@@ -69,12 +74,13 @@
                             <tr class="slds-line-height_reset">
                                 <template for:each={columns} for:item="col">
                                     <th key={col.fieldName} class={col.headerClass} scope="col" onclick={handleSort} data-id={col.fieldName} style={col.style}>
-                                        <div class="slds-grid slds-grid_vertical-align-center">
+                                        <div class="slds-grid slds-grid_vertical-align-center header-content" onmousedown={handleHeaderMouseDown}>
                                             <span class="slds-truncate" title={col.label}>{col.label}</span>
                                             <template lwc:if={col.showSortIcon}>
                                                 <lightning-icon icon-name={sortIcon} size="xx-small" class="slds-m-left_xx-small slds-shrink-none"></lightning-icon>
                                             </template>
                                         </div>
+                                        <div class="resize-handle" onmousedown={handleResizeMouseDown} data-col={col.fieldName}></div>
                                     </th>
                                 </template>
                             </tr>
