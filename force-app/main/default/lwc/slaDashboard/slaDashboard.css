@@ -1,0 +1,20 @@
+.dashboard-container { background: #f3f4f6; border-radius: 8px; font-family: 'Salesforce Sans', Arial, sans-serif; }
+.dashboard-row { margin-bottom: 1rem; }
+.row-label { font-size: 0.85rem; font-weight: 700; color: #4b5563; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.025em; border-left: 4px solid #3b82f6; padding-left: 0.75rem; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; }
+.count-wrapper { background: white; border-radius: 6px; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; min-height: 80px; justify-content: center; }
+.count-wrapper:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.count-bar { position: absolute; top: 0; left: 0; width: 100%; height: 4px; }
+.count-label { font-size: 0.75rem; font-weight: 600; color: #6b7280; margin-bottom: 0.25rem; text-align: center; }
+.label-short { display: none; }
+.count-value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+th { position: sticky; top: 0; z-index: 100; background-color: #f8f9fb !important; font-weight: bold; color: #514f6d; padding: 0.5rem !important; cursor: pointer; resize: horizontal; overflow: auto; }
+th.is-sorted { color: #0176d3; background-color: #f0f8ff !important; }
+.table-row:hover { background-color: #f4f6f9 !important; }
+.priority-urgent { border-left: 4px solid #ea001e !important; background-color: #fff1f1; }
+.priority-high { border-left: 4px solid #f39e58 !important; background-color: #fff9f0; }
+.jira-detail-row { background-color: #f9fafb !important; }
+.jira-detail-container { border: 1px solid #e5e7eb; border-radius: 4px; margin: 4px; background: white; }
+.modal-content-area { background: white !important; margin-bottom: 0 !important; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; height: 60vh; overflow-y: auto !important; display: block; position: relative; }
+.table-loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.6); z-index: 100; display: flex; justify-content: center; align-items: center; }
+@media (max-width: 768px) { .label-full { display: none; } .label-short { display: inline; } }
