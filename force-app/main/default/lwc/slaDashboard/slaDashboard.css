@@ -1,3 +1,11 @@
+.cell-sla-red { border-left: 6px solid #ef5350 !important; }
+.cell-sla-orange { border-left: 6px solid #ffa726 !important; }
+.cell-sla-yellow { border-left: 6px solid #fdd835 !important; }
+.cell-sla-green { border-left: 6px solid #66bb6a !important; }
+
+/* Adjust padding for cells with borders to prevent text shift if desired, or let it shift to emphasize */
+/* Keeping default padding usually works fine with border-left */
+
 .dashboard-container { background: #f3f4f6; border-radius: 8px; font-family: 'Salesforce Sans', Arial, sans-serif; }
 .dashboard-row { margin-bottom: 1rem; }
 .row-label { font-size: 0.85rem; font-weight: 700; color: #4b5563; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.025em; border-left: 4px solid #3b82f6; padding-left: 0.75rem; }
@@ -13,22 +21,19 @@
 .gauge-segment.green { stroke: #66bb6a; }
 .gauge-count { font-size: 8px; font-weight: 800; fill: #374151; dominant-baseline: middle; text-anchor: middle; }
 .gauge-label { font-size: 4px; font-weight: 600; fill: #6b7280; dominant-baseline: middle; text-anchor: middle; letter-spacing: 0.5px; }
-th { position: sticky; top: 0; z-index: 100; background-color: #f8f9fb !important; font-weight: bold; color: #514f6d; padding: 0.5rem !important; cursor: default; position: relative; }
-.header-content { cursor: pointer; width: 100%; height: 100%; display: flex; align-items: center; }
-.resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 101; opacity: 0; transition: opacity 0.2s; }
-.resize-handle:hover, th:hover .resize-handle { opacity: 1; background-color: #0070d2; }
+th { position: sticky; top: 0; z-index: 100; background-color: #f8f9fb !important; font-weight: bold; color: #514f6d; padding: 0.5rem !important; cursor: default; position: relative; box-sizing: border-box; }
+.header-content { cursor: pointer; width: 100%; height: 100%; display: flex; align-items: center; overflow: hidden; }
 th.is-sorted { color: #0176d3; background-color: #f0f8ff !important; }
 .table-row:hover { background-color: #f4f6f9 !important; }
-.priority-urgent { border-left: 4px solid #ea001e !important; background-color: #fff1f1; }
-.priority-high { border-left: 4px solid #f39e58 !important; background-color: #fff9f0; }
-.sla-green { border-left: 4px solid #66bb6a !important; background-color: rgba(102, 187, 106, 0.1); }
-.sla-yellow { border-left: 4px solid #fdd835 !important; background-color: rgba(253, 216, 53, 0.1); }
-.sla-orange { border-left: 4px solid #ffa726 !important; background-color: rgba(255, 167, 38, 0.1); }
-.sla-red { border-left: 4px solid #ef5350 !important; background-color: rgba(239, 83, 80, 0.1); }
+.priority-urgent { background-color: rgba(229, 115, 115, 0.3); }
+.priority-high { background-color: rgba(255, 183, 77, 0.3); }
+.priority-normal { background-color: rgba(129, 199, 132, 0.3); }
+.priority-low { background-color: rgba(144, 164, 174, 0.3); }
 .jira-detail-row { background-color: #f9fafb !important; }
 .jira-detail-container { border: 1px solid #e5e7eb; border-radius: 4px; margin: 4px; background: white; }
-.modal-content-area { background: white !important; margin-bottom: 0 !important; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; height: 60vh; overflow-y: auto !important; display: block; position: relative; }
+.modal-content-area { background: white !important; margin-bottom: 0 !important; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; height: auto; max-height: 70vh; overflow: auto !important; display: block; position: relative; }
 .table-loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.6); z-index: 100; display: flex; justify-content: center; align-items: center; }
 .modal-bottom-actions { display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 1rem; }
 .footer-text { color: #ffffff !important; font-weight: 600; margin-top: 6px; margin-bottom: 6px; }
+.slds-table td { white-space: normal !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
 @media (max-width: 768px) { .label-full { display: none; } .label-short { display: inline; } }

@@ -37,31 +37,6 @@
             <div class="slds-modal_container" onclick={handleStopPropagation}>
                 <header class="slds-modal_header">
                     <h2 class="slds-modal_title slds-hyphenate">{modalTitle}</h2>
-                    <div class="slds-grid slds-grid_vertical slds-m-top_small">
-                        <div class="slds-col slds-size_1-of-1 slds-m-bottom_small">
-                            <lightning-input type="search" value={searchTerm} placeholder={searchPlaceholder} onchange={handleSearch} variant="label-hidden" is-loading={isSearching}></lightning-input>
-                        </div>
-                        <div class="slds-col slds-text-align_left slds-m-bottom_small">
-                            <div class="slds-grid slds-grid_vertical-align-bottom slds-wrap">
-                                <!-- Priority Filter -->
-                                <div class="slds-m-right_small filter-group">
-                                    <div class="filter-title slds-text-title_bold slds-m-bottom_xx-small">Priority</div>
-                                    <lightning-button-group>
-                                        <lightning-button label="Urgent" value="Urgent" variant={priorityFilterUrgent} onclick={handlePriorityQuickFilter}></lightning-button>
-                                        <lightning-button label="High" value="High" variant={priorityFilterHigh} onclick={handlePriorityQuickFilter}></lightning-button>
-                                        <lightning-button label="Normal" value="Normal" variant={priorityFilterNormal} onclick={handlePriorityQuickFilter}></lightning-button>
-                                        <lightning-button label="Low" value="Low" variant={priorityFilterLow} onclick={handlePriorityQuickFilter}></lightning-button>
-                                    </lightning-button-group>
-                                </div>
-                                
-                                <!-- Has Jira Toggle -->
-                                <div class="slds-m-right_small filter-group">
-                                    <div class="filter-title slds-text-title_bold slds-m-bottom_xx-small">Has Jira</div>
-                                    <lightning-button label="True" variant={hasJiraBtnVariant} onclick={handleHasJiraToggle}></lightning-button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </header>
                 <div class="slds-modal_content slds-p-around_none modal-content-area" onscroll={handleTableScroll}>
                     <template lwc:if={isSearching}>
@@ -69,18 +44,17 @@
                             <lightning-spinner alternative-text="Searching..." size="small"></lightning-spinner>
                         </div>
                     </template>
-                    <table class="slds-table slds-table_bordered slds-table_fixed-layout">
+                    <table class="slds-table slds-table_bordered">
                         <thead>
                             <tr class="slds-line-height_reset">
                                 <template for:each={columns} for:item="col">
                                     <th key={col.fieldName} class={col.headerClass} scope="col" onclick={handleSort} data-id={col.fieldName} style={col.style}>
-                                        <div class="slds-grid slds-grid_vertical-align-center header-content" onmousedown={handleHeaderMouseDown}>
+                                        <div class="slds-grid slds-grid_vertical-align-center header-content">
                                             <span class="slds-truncate" title={col.label}>{col.label}</span>
                                             <template lwc:if={col.showSortIcon}>
                                                 <lightning-icon icon-name={sortIcon} size="xx-small" class="slds-m-left_xx-small slds-shrink-none"></lightning-icon>
                                             </template>
                                         </div>
-                                        <div class="resize-handle" onmousedown={handleResizeMouseDown} data-col={col.fieldName}></div>
                                     </th>
                                 </template>
                             </tr>
@@ -89,7 +63,7 @@
                             <tbody key={row.Id} class="case-row-group">
                                 <tr class={row.rowClass}>
                                     <template for:each={row.cells} for:item="cell">
-                                        <td key={cell.key}>
+                                        <td key={cell.key} class={cell.cellClass}>
                                             <template lwc:if={cell.isUrl}>
                                                 <button class="slds-button slds-button_reset slds-text-link" onclick={viewCase} data-id={row.Id}>{cell.value}</button>
                                             </template>
@@ -143,34 +117,8 @@
             </div>
             <div class="modal-bottom-actions">
                 <p class="footer-text slds-text-body_small">Click outside the table to close</p>
-                <lightning-button label="Export to CSV" icon-name="utility:download" variant="brand" onclick={openExportConfig}></lightning-button>
             </div>
         </section>
         <div class="slds-backdrop slds-backdrop_open"></div>
-    </template>
-
-    <!-- Export Modal -->
-    <template lwc:if={isExportModalOpen}>
-        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_small" style="z-index: 9003;" onclick={closeExportModal}>
-            <div class="slds-modal_container" style="background: white; border-radius: 4px;" onclick={handleStopPropagation}>
-                <header class="slds-modal_header">
-                    <h2 class="slds-modal_title">Select Export Columns</h2>
-                </header>
-                <div class="slds-modal_content slds-p-around_medium">
-                    <div class="slds-grid slds-wrap">
-                        <template for:each={selectableFields} for:item="f">
-                            <div key={f.apiName} class="slds-col slds-size_1-of-2 slds-p-around_xx-small">
-                                <lightning-input type="checkbox" label={f.label} checked={f.selected} data-id={f.apiName} onchange={handleFieldToggle}></lightning-input>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-bottom-actions">
-                <p class="footer-text slds-text-body_small" style="color: white;">Click outside the table to close</p>
-                <lightning-button label="Download CSV" variant="brand" onclick={downloadCSV}></lightning-button>
-            </div>
-        </section>
-        <div class="slds-backdrop slds-backdrop_open" style="z-index: 9002;"></div>
     </template>
 </template>
