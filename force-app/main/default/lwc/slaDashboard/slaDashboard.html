@@ -22,8 +22,12 @@
                                 <circle class="gauge-segment yellow" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.yellow.array} stroke-dashoffset={item.gauge.yellow.offset}></circle>
                                 <circle class="gauge-segment green" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.green.array} stroke-dashoffset={item.gauge.green.offset}></circle>
                             </template>
-                            <text x="20" y="20" class="gauge-count">{item.count}</text>
-                            <text x="20" y="28" class="gauge-label">{item.shortLabel}</text>
+                            <text x="20" y="20" class="gauge-count" data-flashing={item.isRedZone}></text>
+                            <text x="20" y="20" class="gauge-count" if:false={item.isRedZone}>{item.count}</text>
+                            <text x="20" y="20" class="gauge-count red-flashing" if:true={item.isRedZone}>{item.count}</text>
+                            
+                            <text x="20" y="28" class="gauge-label" if:false={item.isRedZone}>{item.shortLabel}</text>
+                            <text x="20" y="28" class="gauge-label red-flashing" if:true={item.isRedZone}>{item.shortLabel}</text>
                         </svg>
                     </div>
                 </template>

@@ -19,9 +19,29 @@
 .gauge-segment.orange { stroke: #ffa726; }
 .gauge-segment.yellow { stroke: #fdd835; }
 .gauge-segment.green { stroke: #66bb6a; }
-.gauge-count { font-size: 8px; font-weight: 800; fill: #374151; dominant-baseline: middle; text-anchor: middle; }
-.gauge-label { font-size: 4px; font-weight: 600; fill: #6b7280; dominant-baseline: middle; text-anchor: middle; letter-spacing: 0.5px; }
-th { position: sticky; top: 0; z-index: 100; background-color: #f8f9fb !important; font-weight: bold; color: #514f6d; padding: 0.5rem !important; cursor: default; position: relative; box-sizing: border-box; }
+.gauge-count { font-size: 8px; font-weight: bold; text-anchor: middle; fill: #333; }
+.gauge-label { font-size: 4px; text-anchor: middle; fill: #666; text-transform: uppercase; }
+
+.red-flashing {
+    animation: flash-red 4s step-start infinite;
+}
+
+@keyframes flash-red {
+    0%, 50% { fill: #ff0000; }
+    50.1%, 100% { fill: #000000; }
+}
+th { 
+    position: sticky; 
+    top: 0; 
+    z-index: 100; 
+    background-color: #f8f9fb !important; 
+    font-weight: bold; 
+    color: #514f6d; 
+    padding: 0.5rem !important; 
+    cursor: default; 
+    box-sizing: border-box; 
+    box-shadow: inset 0 -1px 0 #d4d4d4;
+}
 .header-content { cursor: pointer; width: 100%; height: 100%; display: flex; align-items: center; overflow: hidden; }
 th.is-sorted { color: #0176d3; background-color: #f0f8ff !important; }
 .table-row:hover { background-color: #f4f6f9 !important; }

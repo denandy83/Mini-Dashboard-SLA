@@ -20,24 +20,27 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     @api columnFields = 'CaseNumber:100, RT_Remaining:120, AT_Remaining:120, UoW_Remaining:120, Fx_Remaining:120, Subject, Priority';
 
     @track milestoneItems = [ 
-        { id: 'Response Time', fullLabel: 'RT', shortLabel: 'RT', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} } }, 
-        { id: 'Analysis and Timeline', fullLabel: 'A&T', shortLabel: 'A&T', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} } }, 
-        { id: 'Update or Workaround', fullLabel: 'UoW', shortLabel: 'UoW', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} } }, 
-        { id: 'Fix Resolution', fullLabel: 'Fx', shortLabel: 'Fx', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} } } 
+        { id: 'Response Time', fullLabel: 'RT', shortLabel: 'RT', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
+        { id: 'Analysis and Timeline', fullLabel: 'A&T', shortLabel: 'A&T', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
+        { id: 'Update or Workaround', fullLabel: 'UoW', shortLabel: 'UoW', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
+        { id: 'Fix Resolution', fullLabel: 'Fx', shortLabel: 'Fx', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false } 
     ];
 
     @track milestoneList = []; @track isPriorityMode = false; @track isModalOpen = false; @track modalTitle = ''; @track modalData = []; @track stoppedData = []; @track columns = [];
     @track sortedBy = ''; @track sortedDirection = 'asc';
+    @track isFlashingRed = false;
     isLoadingModal = false; isLoadingMore = false; offset = 0; limit = 50; 
     isLoadingStopped = false; stoppedOffset = 0; isMoreStoppedAvailable = true;
     lastRequestId = 0; pollingTimeout; isPollingEnabled = false; currentDashboardId; isMoreDataAvailable = true;
+    flashingInterval;
 
     @wire(EnclosingTabId) enclosingTabId;
     @wire(getObjectInfo, { objectApiName: CASE_OBJECT }) caseInfo;
 
-    connectedCallback() { this.fetchData(); this.startPolling(); if (onTabFocused) { onTabFocused((event) => { const tid = this.enclosingTabId?.data; if (!tid || event.tabId === tid) { this.fetchData(); this.startPolling(); } else { this.stopPolling(); } }); } }
+    connectedCallback() { this.fetchData(); this.startPolling(); this.startFlashing(); if (onTabFocused) { onTabFocused((event) => { const tid = this.enclosingTabId?.data; if (!tid || event.tabId === tid) { this.fetchData(); this.startPolling(); } else { this.stopPolling(); } }); } }
     disconnectedCallback() {
         this.stopPolling();
+        this.stopFlashing();
         if (this._escapeHandler) {
             window.removeEventListener('keydown', this._escapeHandler);
         }
@@ -46,7 +49,18 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     stopPolling() { this.isPollingEnabled = false; if (this.pollingTimeout) clearTimeout(this.pollingTimeout); }
     _performPoll() { if (!this.isPollingEnabled) return; this.fetchData().finally(() => { if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); }); }
 
-    fetchData() { return getDashboardData({ accountId: null }).then(result => { if (result) { this.milestoneList = result.milestoneList || []; this.computeMilestoneCounts(); } }).catch(e => this.handleError('Load Error', e)); }
+    startFlashing() {
+        this.stopFlashing();
+        this.flashingInterval = setInterval(() => {
+            this.isFlashingRed = !this.isFlashingRed;
+        }, 2000);
+    }
+    stopFlashing() { if (this.flashingInterval) clearInterval(this.flashingInterval); }
+
+    fetchData() { 
+        console.log(`[SLA Dashboard Refresh] Tab: ${this.enclosingTabId?.data || 'Unknown'}, Time: ${new Date().toLocaleString()}`);
+        return getDashboardData({ accountId: null }).then(result => { if (result) { this.milestoneList = result.milestoneList || []; this.computeMilestoneCounts(); } }).catch(e => this.handleError('Load Error', e)); 
+    }
     handleToggleSLA(e) { this.isPriorityMode = e.target.checked; this.computeMilestoneCounts(); }
     
     computeMilestoneCounts() {
@@ -104,6 +118,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                 ...i, 
                 count: s.count, 
                 tooltip: tip, 
+                isRedZone: s.buckets.red > 0,
                 gauge: {
                     red: { array: pRed, offset: oRed },
                     orange: { array: pOrg, offset: oOrg },
@@ -263,7 +278,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                             s = violated ? 'Violated' : 'Completed';
                             if (violated) cellClass = 'cell-sla-red';
                         } else if (target) {
-                            s = this.calculateTimeRemaining(target);
+                            s = this.getSlaDisplayValue(m.TimeRemainingInMins, m.TimeSinceTargetInMins);
                             const now = new Date();
                             const tgt = new Date(target);
                             const diffMs = tgt - now;
@@ -349,6 +364,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             const processed = this.processRowData(data);
             this.modalData = (this.offset === 0 ? [] : this.modalData).concat(processed);
             this.isMoreDataAvailable = data.length === this.limit;
+            this.applyClientSideSort();
         })
         .catch(e => this.handleError('Error', e))
         .finally(() => { if (rid === this.lastRequestId) { this.isLoadingModal = false; this.isLoadingMore = false; } });
@@ -364,6 +380,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                 const processed = this.processRowData(data);
                 this.stoppedData = (this.stoppedOffset === 0 ? [] : this.stoppedData).concat(processed);
                 this.isMoreStoppedAvailable = data.length === this.limit;
+                this.applyClientSideSort();
             })
             .catch(e => this.handleError('Error Stopped', e))
             .finally(() => { if (rid === this.lastRequestId) this.isLoadingStopped = false; });
@@ -389,9 +406,39 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             const processed = this.processRowData(data);
             this.stoppedData = this.stoppedData.concat(processed);
             this.isMoreStoppedAvailable = data.length === this.limit;
+            this.applyClientSideSort();
         })
         .catch(e => this.handleError('Error Stopped', e))
         .finally(() => { this.isLoadingStopped = false; });
+    }
+
+    formatTime(minSecString) {
+        if (!minSecString) return '';
+        const parts = minSecString.split(':');
+        let totalMins = 0;
+        if (parts.length >= 1) {
+             totalMins = parseInt(parts[0], 10);
+        }
+        
+        if (isNaN(totalMins)) return minSecString; 
+
+        const d = Math.floor(totalMins / 1440);
+        const h = Math.floor((totalMins % 1440) / 60);
+        const m = totalMins % 60;
+
+        let res = '';
+        if (d > 0) res += `${d}d `;
+        if (h > 0 || d > 0) res += `${h}h `;
+        res += `${m}m`;
+        return res.trim();
+    }
+
+    getSlaDisplayValue(rem, since) {
+        if (!rem || rem === '00:00' || rem.startsWith('-')) {
+             const sinceFormatted = this.formatTime(since);
+             return sinceFormatted ? `Overdue by ${sinceFormatted}` : '00:00';
+        }
+        return this.formatTime(rem);
     }
 
     calculateTimeRemaining(tstr) {
@@ -477,12 +524,19 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             this.sortedBy = f;
             this.sortedDirection = 'asc'; 
         } 
+        this.applyClientSideSort();
+        this.buildColumns(); 
+    }
 
-        // Client-side sorting logic
+    applyClientSideSort() {
+        const f = this.sortedBy;
+        if (!f) return;
+
         const data = [...this.modalData];
+        const stoppedData = [...this.stoppedData];
         const reverse = this.sortedDirection === 'desc' ? -1 : 1;
 
-        data.sort((a, b) => {
+        const sortFunction = (a, b) => {
             let valA = a[f];
             let valB = b[f];
 
@@ -497,23 +551,27 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                         const parts = v.replace('Overdue by ', '').split(' ');
                         let mins = 0;
                         parts.forEach(p => {
-                            if (p.endsWith('d')) mins += parseInt(p) * 1440;
-                            else if (p.endsWith('h')) mins += parseInt(p) * 60;
-                            else if (p.endsWith('m')) mins += parseInt(p);
+                            if (p.endsWith('d')) mins += (parseInt(p) || 0) * 1440;
+                            else if (p.endsWith('h')) mins += (parseInt(p) || 0) * 60;
+                            else if (p.endsWith('m')) mins += (parseInt(p) || 0);
                         });
                         return -mins;
                     }
                     const parts = v.split(' ');
                     let mins = 0;
                     parts.forEach(p => {
-                        if (p.endsWith('d')) mins += parseInt(p) * 1440;
-                        else if (p.endsWith('h')) mins += parseInt(p) * 60;
-                        else if (p.endsWith('m')) mins += parseInt(p);
+                        if (p.endsWith('d')) mins += (parseInt(p) || 0) * 1440;
+                        else if (p.endsWith('h')) mins += (parseInt(p) || 0) * 60;
+                        else if (p.endsWith('m')) mins += (parseInt(p) || 0);
                     });
                     return mins;
                 };
-                valA = getSlaScore(valA);
-                valB = getSlaScore(valB);
+                
+                const scoreA = getSlaScore(valA);
+                const scoreB = getSlaScore(valB);
+                // console.log(`Sorting ${f} (SLA=${isSLAField}): A='${valA}'(${scoreA}), B='${valB}'(${scoreB})`);
+                valA = scoreA;
+                valB = scoreB;
             }
 
             if (valA === undefined || valA === null) valA = '';
@@ -528,10 +586,13 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             if (valA < valB) return -1 * reverse;
             if (valA > valB) return 1 * reverse;
             return 0;
-        });
+        };
+
+        data.sort(sortFunction);
+        stoppedData.sort(sortFunction);
 
         this.modalData = data;
-        this.buildColumns(); 
+        this.stoppedData = stoppedData;
     }
     viewCase(e) { const id = e.currentTarget.dataset.id; try { openTab({ recordId: id, focus: true }); } catch (er) { this[NavigationMixin.Navigate]({ type: 'standard__recordPage', attributes: { recordId: id, actionName: 'view' } }); } }
     closeModal() { 

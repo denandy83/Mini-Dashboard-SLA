@@ -29,6 +29,8 @@ public without sharing class SLADashboardController {
         @AuraEnabled public String priority;
         @AuraEnabled public Id caseId;
         @AuraEnabled public Datetime targetDate;
+        @AuraEnabled public String timeRemaining;
+        @AuraEnabled public String timeSinceTarget;
     }
 
     public class DashboardData {
@@ -54,7 +56,7 @@ public without sharing class SLADashboardController {
         // We use CaseMilestone to find running milestones (IsCompleted = false) that are not stopped (Case.IsStopped = false)
         // GLOBAL query (no account filter). Exclude Solved/Closed cases.
         // We fetch ALL running milestones sorted by CaseId and TargetDate to allow frontend to filter/prioritize.
-                String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate ' +
+                String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate, TimeRemainingInMins, TimeSinceTargetInMins ' +
                                'FROM CaseMilestone ' +
                                'WHERE IsCompleted = false ' + 
                                'AND Case.Status NOT IN (\'Solved\', \'Closed\') ' +
@@ -68,6 +70,8 @@ public without sharing class SLADashboardController {
             info.priority = cm.Case.Priority != null ? cm.Case.Priority : 'Normal';
             info.caseId = cm.CaseId;
             info.targetDate = cm.TargetDate;
+            info.timeRemaining = (String)cm.get('TimeRemainingInMins');
+            info.timeSinceTarget = (String)cm.get('TimeSinceTargetInMins');
             results.add(info);
         }
         
@@ -157,7 +161,7 @@ public without sharing class SLADashboardController {
             fieldList.add('(SELECT Name, AVB_Status__c, AVB_Priority__c, AVB_Fix_Versions__c, AVB_Assignee__c, AVB_Reporter__c, AVB_Due_Date__c, AVB_Customers__c, AVB_Base_Cloud_Tools_Environment__c FROM Jira_Tickets__r)');
         }
         // Always include milestone data for status display in columns
-        fieldList.add('(SELECT MilestoneType.Name, TargetDate, IsCompleted, IsViolated FROM CaseMilestones)');
+        fieldList.add('(SELECT MilestoneType.Name, TargetDate, IsCompleted, IsViolated, TimeRemainingInMins, TimeSinceTargetInMins FROM CaseMilestones)');
         
         String fieldString = String.join(fieldList, ', ');
         Integer finalLimit = (limitCount != null && limitCount > 0) ? limitCount : 20;

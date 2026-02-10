@@ -17,7 +17,7 @@ public class SLADashboardControllerTest {
         insert c;
 
         Test.startTest();
-        List<Case> smart = SLADashboardController.getCaseList('New', null, new List<String>{'Subject'}, 'Subject', 'ASC', null, 0, 'Priority', 'High', false, 20, new List<String>{'High'}, false, null, null, false);
+        List<Case> smart = SLADashboardController.getCaseList('New', null, new List<String>{'Subject'}, 'Subject', 'ASC', null, 0, 'Priority', 'High', false, 20, new List<String>{'High'}, false, null, null, false, false);
         System.assertEquals(1, smart.size());
         Test.stopTest();
     }
