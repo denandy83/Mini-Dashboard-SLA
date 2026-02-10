@@ -38,81 +38,130 @@
                 <header class="slds-modal_header">
                     <h2 class="slds-modal_title slds-hyphenate">{modalTitle}</h2>
                 </header>
-                <div class="slds-modal_content slds-p-around_none modal-content-area" onscroll={handleTableScroll}>
-                    <template lwc:if={isSearching}>
-                        <div class="table-loading-overlay">
-                            <lightning-spinner alternative-text="Searching..." size="small"></lightning-spinner>
-                        </div>
-                    </template>
-                    <table class="slds-table slds-table_bordered">
-                        <thead>
-                            <tr class="slds-line-height_reset">
-                                <template for:each={columns} for:item="col">
-                                    <th key={col.fieldName} class={col.headerClass} scope="col" onclick={handleSort} data-id={col.fieldName} style={col.style}>
-                                        <div class="slds-grid slds-grid_vertical-align-center header-content">
-                                            <span class="slds-truncate" title={col.label}>{col.label}</span>
-                                            <template lwc:if={col.showSortIcon}>
-                                                <lightning-icon icon-name={sortIcon} size="xx-small" class="slds-m-left_xx-small slds-shrink-none"></lightning-icon>
-                                            </template>
-                                        </div>
-                                    </th>
-                                </template>
-                            </tr>
-                        </thead>
-                        <template for:each={modalData} for:item="row">
-                            <tbody key={row.Id} class="case-row-group">
-                                <tr class={row.rowClass}>
-                                    <template for:each={row.cells} for:item="cell">
-                                        <td key={cell.key} class={cell.cellClass}>
-                                            <template lwc:if={cell.isUrl}>
-                                                <button class="slds-button slds-button_reset slds-text-link" onclick={viewCase} data-id={row.Id}>{cell.value}</button>
-                                            </template>
-                                            <template lwc:elseif={cell.isBoolean}>
-                                                <div class="slds-grid slds-grid_align-center">
-                                                    <div class={cell.checkboxClass}></div>
-                                                </div>
-                                            </template>
-                                            <template lwc:else>{cell.value}</template>
-                                        </td>
+                <div class="slds-modal_content slds-p-around_medium modal-content-area">
+                    <!-- Active Cases Section -->
+                    <h3 class="slds-text-heading_small table-section-header">{activeCasesTitle}</h3>
+                    <div class="table-scroll-container" onscroll={handleTableScroll}>
+                        <template lwc:if={isSearching}>
+                            <div class="table-loading-overlay">
+                                <lightning-spinner alternative-text="Searching..." size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <table class="slds-table slds-table_bordered">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <template for:each={columns} for:item="col">
+                                        <th key={col.fieldName} class={col.headerClass} scope="col" onclick={handleSort} data-id={col.fieldName} style={col.style}>
+                                            <div class="slds-grid slds-grid_vertical-align-center header-content">
+                                                <span class="slds-truncate" title={col.label}>{col.label}</span>
+                                                <template lwc:if={col.showSortIcon}>
+                                                    <lightning-icon icon-name={sortIcon} size="xx-small" class="slds-m-left_xx-small slds-shrink-none"></lightning-icon>
+                                                </template>
+                                            </div>
+                                        </th>
                                     </template>
                                 </tr>
-                                <tr key={row.jiraKey} lwc:if={row.hasJiraDetails} class="jira-detail-row">
-                                    <td colspan="100">
-                                        <div class="slds-p-around_small jira-detail-container">
-                                            <ul class="slds-list_vertical">
-                                                <template for:each={row.jiraDetails} for:item="jira">
-                                                    <li key={jira.id} class={jira.itemClass}>
-                                                        <div class="slds-grid slds-wrap slds-p-vertical_xx-small slds-p-horizontal_small">
-                                                            <div class="slds-col slds-size_2-of-12">
-                                                                <a href={jira.url} target="_blank" class="slds-text-link">
-                                                                    <strong>{jira.name}</strong>
-                                                                </a>
-                                                            </div>
-                                                            <div class="slds-col slds-size_2-of-12">
-                                                                <span class="slds-text-color_weak">Status:</span> {jira.status}
-                                                            </div>
-                                                            <div class="slds-col slds-size_2-of-12">
-                                                                <span class="slds-text-color_weak">Priority:</span> {jira.priority}
-                                                            </div>
-                                                            <div class="slds-col slds-size_3-of-12">
-                                                                <span class="slds-text-color_weak">Fix:</span> {jira.fixVersion}
-                                                            </div>
-                                                            <div class="slds-col slds-size_3-of-12">
-                                                                <span class="slds-text-color_weak">Assignee:</span> {jira.assignee}
-                                                            </div>
-                                                        </div>
-                                                    </li>
+                            </thead>
+                            <template for:each={modalData} for:item="row">
+                                <tbody key={row.Id} class="case-row-group">
+                                    <tr class={row.rowClass}>
+                                        <template for:each={row.cells} for:item="cell">
+                                            <td key={cell.key} class={cell.cellClass}>
+                                                <template lwc:if={cell.isUrl}>
+                                                    <button class="slds-button slds-button_reset slds-text-link" onclick={viewCase} data-id={row.Id}>{cell.value}</button>
                                                 </template>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
+                                                <template lwc:elseif={cell.isBoolean}>
+                                                    <div class="slds-grid slds-grid_align-center">
+                                                        <div class={cell.checkboxClass}></div>
+                                                    </div>
+                                                </template>
+                                                <template lwc:else>{cell.value}</template>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                    <tr key={row.jiraKey} lwc:if={row.hasJiraDetails} class="jira-detail-row">
+                                        <td colspan="100">
+                                            <div class="slds-p-around_small jira-detail-container">
+                                                <ul class="slds-list_vertical">
+                                                    <template for:each={row.jiraDetails} for:item="jira">
+                                                        <li key={jira.id} class={jira.itemClass}>
+                                                            <div class="slds-grid slds-wrap slds-p-vertical_xx-small slds-p-horizontal_small">
+                                                                <div class="slds-col slds-size_2-of-12">
+                                                                    <a href={jira.url} target="_blank" class="slds-text-link">
+                                                                        <strong>{jira.name}</strong>
+                                                                    </a>
+                                                                </div>
+                                                                <div class="slds-col slds-size_2-of-12">
+                                                                    <span class="slds-text-color_weak">Status:</span> {jira.status}
+                                                                </div>
+                                                                <div class="slds-col slds-size_2-of-12">
+                                                                    <span class="slds-text-color_weak">Priority:</span> {jira.priority}
+                                                                </div>
+                                                                <div class="slds-col slds-size_3-of-12">
+                                                                    <span class="slds-text-color_weak">Fix:</span> {jira.fixVersion}
+                                                                </div>
+                                                                <div class="slds-col slds-size_3-of-12">
+                                                                    <span class="slds-text-color_weak">Assignee:</span> {jira.assignee}
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    </template>
+                                                </ul>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </template>
+                        </table>
+                        <template lwc:if={isLoadingModal}>
+                            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
                         </template>
-                    </table>
-                    <template lwc:if={isLoadingModal}>
-                        <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
-                    </template>
+                    </div>
+
+                    <!-- Stopped Cases Section -->
+                    <h3 class="slds-text-heading_small table-section-header">{stoppedCasesTitle}</h3>
+                    <div class="table-scroll-container" onscroll={loadMoreStopped}>
+                        <table class="slds-table slds-table_bordered">
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <template for:each={columns} for:item="col">
+                                        <th key={col.fieldName} class={col.headerClass} scope="col" onclick={handleSort} data-id={col.fieldName} style={col.style}>
+                                            <div class="slds-grid slds-grid_vertical-align-center header-content">
+                                                <span class="slds-truncate" title={col.label}>{col.label}</span>
+                                                <template lwc:if={col.showSortIcon}>
+                                                    <lightning-icon icon-name={sortIcon} size="xx-small" class="slds-m-left_xx-small slds-shrink-none"></lightning-icon>
+                                                </template>
+                                            </div>
+                                        </th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <template for:each={stoppedData} for:item="row">
+                                <tbody key={row.Id} class="case-row-group">
+                                    <tr class={row.rowClass}>
+                                        <template for:each={row.cells} for:item="cell">
+                                            <td key={cell.key} class={cell.cellClass}>
+                                                <template lwc:if={cell.isUrl}>
+                                                    <button class="slds-button slds-button_reset slds-text-link" onclick={viewCase} data-id={row.Id}>{cell.value}</button>
+                                                </template>
+                                                <template lwc:elseif={cell.isBoolean}>
+                                                    <div class="slds-grid slds-grid_align-center">
+                                                        <div class={cell.checkboxClass}></div>
+                                                    </div>
+                                                </template>
+                                                <template lwc:else>{cell.value}</template>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </tbody>
+                            </template>
+                        </table>
+                        <template lwc:if={isLoadingStopped}>
+                            <div style="position: relative; height: 50px;">
+                                <lightning-spinner alternative-text="Loading Stopped..." size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
             <div class="modal-bottom-actions">

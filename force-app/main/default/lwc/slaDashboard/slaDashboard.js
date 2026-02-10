@@ -26,14 +26,22 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         { id: 'Fix Resolution', fullLabel: 'Fx', shortLabel: 'Fx', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} } } 
     ];
 
-    @track milestoneList = []; @track isPriorityMode = false; @track isModalOpen = false; @track modalTitle = ''; @track modalData = []; @track columns = [];
+    @track milestoneList = []; @track isPriorityMode = false; @track isModalOpen = false; @track modalTitle = ''; @track modalData = []; @track stoppedData = []; @track columns = [];
     @track sortedBy = ''; @track sortedDirection = 'asc';
-    isLoadingModal = false; isLoadingMore = false; offset = 0; limit = 50; lastRequestId = 0; pollingTimeout; isPollingEnabled = false; currentDashboardId; isMoreDataAvailable = true;
+    isLoadingModal = false; isLoadingMore = false; offset = 0; limit = 50; 
+    isLoadingStopped = false; stoppedOffset = 0; isMoreStoppedAvailable = true;
+    lastRequestId = 0; pollingTimeout; isPollingEnabled = false; currentDashboardId; isMoreDataAvailable = true;
 
     @wire(EnclosingTabId) enclosingTabId;
     @wire(getObjectInfo, { objectApiName: CASE_OBJECT }) caseInfo;
 
     connectedCallback() { this.fetchData(); this.startPolling(); if (onTabFocused) { onTabFocused((event) => { const tid = this.enclosingTabId?.data; if (!tid || event.tabId === tid) { this.fetchData(); this.startPolling(); } else { this.stopPolling(); } }); } }
+    disconnectedCallback() {
+        this.stopPolling();
+        if (this._escapeHandler) {
+            window.removeEventListener('keydown', this._escapeHandler);
+        }
+    }
     startPolling() { this.stopPolling(); this.isPollingEnabled = true; this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); }
     stopPolling() { this.isPollingEnabled = false; if (this.pollingTimeout) clearTimeout(this.pollingTimeout); }
     _performPoll() { if (!this.isPollingEnabled) return; this.fetchData().finally(() => { if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); }); }
@@ -110,7 +118,19 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     handleItemClick(e) {
         const id = e.currentTarget.dataset.id; this.currentDashboardId = id; this.modalTitle = id + ' Overview';
         this.sortedBy = SLA_COLUMNS_MAP[id]; this.sortedDirection = 'asc';
-        this.modalData = []; this.offset = 0; this.isModalOpen = true; this.buildColumns(); this.loadModalData();
+        this.modalData = []; this.stoppedData = [];
+        this.offset = 0; this.stoppedOffset = 0;
+        this.isModalOpen = true; 
+
+        // Add ESC listener
+        this._escapeHandler = (event) => {
+            if (event.key === 'Escape') {
+                this.closeModal();
+            }
+        };
+        window.addEventListener('keydown', this._escapeHandler);
+
+        this.buildColumns(); this.loadModalData();
     }
 
     buildColumns() {
@@ -221,113 +241,157 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         });
     }
 
+    processRowData(data) {
+        return this.flattenData(data).map(c => {
+            try {
+                let sv = { RT_Remaining: '/', AT_Remaining: '/', UoW_Remaining: '/', Fx_Remaining: '/' };
+                let slaStatusMap = {};
+
+                const ms = c.CaseMilestones || (c.CaseMilestones ? c.CaseMilestones.records : []);
+                const mlist = Array.isArray(ms) ? ms : (ms.records || []);
+                
+                mlist.forEach(m => {
+                    const mt = m.MilestoneType;
+                    if (mt) {
+                        let s = '/';
+                        let cellClass = '';
+                        const completed = m.IsCompleted === true || m.isCompleted === true;
+                        const violated = m.IsViolated === true || m.isViolated === true;
+                        const target = m.TargetDate || m.targetDate;
+                        
+                        if (completed) {
+                            s = violated ? 'Violated' : 'Completed';
+                            if (violated) cellClass = 'cell-sla-red';
+                        } else if (target) {
+                            s = this.calculateTimeRemaining(target);
+                            const now = new Date();
+                            const tgt = new Date(target);
+                            const diffMs = tgt - now;
+                            const h = diffMs / 36e5;
+                            
+                            if (h > this.greenThreshold) cellClass = 'cell-sla-green';
+                            else if (h > this.yellowThreshold) cellClass = 'cell-sla-yellow';
+                            else if (h > this.orangeThreshold) cellClass = 'cell-sla-orange';
+                            else cellClass = 'cell-sla-red';
+                        }
+
+                        const r = (v) => v === 'Violated' ? 4 : (v === '/' ? 0 : (v === 'Completed' ? 1 : 3));
+                        const upd = (o, n) => r(n) >= r(o) ? n : o;
+                        
+                        if (mt.Name === 'Response Time') { sv.RT_Remaining = upd(sv.RT_Remaining, s); if (cellClass) slaStatusMap['RT_Remaining'] = cellClass; }
+                        else if (mt.Name === 'Analysis and Timeline') { sv.AT_Remaining = upd(sv.AT_Remaining, s); if (cellClass) slaStatusMap['AT_Remaining'] = cellClass; }
+                        else if (mt.Name === 'Update or Workaround') { sv.UoW_Remaining = upd(sv.UoW_Remaining, s); if (cellClass) slaStatusMap['UoW_Remaining'] = cellClass; }
+                        else if (mt.Name === 'Fix Resolution') { sv.Fx_Remaining = upd(sv.Fx_Remaining, s); if (cellClass) slaStatusMap['Fx_Remaining'] = cellClass; }
+                    }
+                });
+                
+                let rc = 'table-row ' + ('priority-' + (c.Priority ? c.Priority.toLowerCase() : 'normal'));
+                
+                c['RT_Remaining'] = sv.RT_Remaining;
+                c['AT_Remaining'] = sv.AT_Remaining;
+                c['UoW_Remaining'] = sv.UoW_Remaining;
+                c['Fx_Remaining'] = sv.Fx_Remaining;
+
+                let jiraDetails = [];
+                const cells = this.columns.map(col => {
+                    const recordValue = sv[col.fieldName] !== undefined ? sv[col.fieldName] : c[col.fieldName];
+                    let displayValue = recordValue;
+                    const isJira = !!col.isJira;
+                    
+                    const cellSlaClass = slaStatusMap[col.fieldName] || '';
+
+                    if (isJira) {
+                            displayValue = ''; // Jira column content if needed
+                            c[col.fieldName] = displayValue; 
+                    } else if (displayValue && col.fieldName.toLowerCase().includes('date')) {
+                        displayValue = this.formatDate(displayValue);
+                    }
+                    return { 
+                        key: col.fieldName, 
+                        value: displayValue, 
+                        isUrl: col.type === 'button', 
+                        isBoolean: col.type === 'boolean', 
+                        isJira: isJira, 
+                        checkboxClass: col.type === 'boolean' ? (recordValue ? 'custom-checkbox checked' : 'custom-checkbox') : '',
+                        cellClass: cellSlaClass
+                    };
+                });
+                return { ...c, rowClass: rc, cells: cells, jiraDetails: jiraDetails, hasJiraDetails: jiraDetails.length > 0, jiraKey: c.Id + '-jira' };
+            } catch (err) {
+                console.error('Row mapping error', err);
+                return { ...c, rowClass: 'table-row', cells: [], hasJiraDetails: false };
+            }
+        });
+    }
+
     loadModalData() {
         if (!this.columns || this.columns.length === 0) this.buildColumns();
-        const rid = ++this.lastRequestId; const off = this.offset;
-        if (off === 0) this.isLoadingModal = true; else this.isLoadingMore = true;
+        const rid = ++this.lastRequestId; 
         
         const fieldsToQuery = this.columnFields.split(',').map(f => f.trim().split(':')[0].trim());
         if (!fieldsToQuery.includes('Priority')) fieldsToQuery.push('Priority');
         const realFields = fieldsToQuery.filter(f => !['RT_Remaining', 'AT_Remaining', 'UoW_Remaining', 'Fx_Remaining'].includes(f));
+        
+        const commonParams = {
+            dashboardId: this.currentDashboardId, accountId: null, fields: realFields, 
+            sortField: this.sortedBy.replaceAll(DOT_SEP, '.'), sortOrder: this.sortedDirection, 
+            searchTerm: '', onlyMine: false, priorityFilter: [], limitCount: this.limit, 
+            advancedField: '', advancedValue: '', hasJira: false, statusFilter: [], 
+            unresponsiveFilter: [], onlyCountFirstSLA: this.isPriorityMode
+        };
 
-        getCaseList({ dashboardId: this.currentDashboardId, accountId: null, fields: realFields, sortField: this.sortedBy.replaceAll(DOT_SEP, '.'), sortOrder: this.sortedDirection, searchTerm: '', offset: off, onlyMine: false, priorityFilter: [], limitCount: this.limit, advancedField: '', advancedValue: '', hasJira: false, statusFilter: [], unresponsiveFilter: [], onlyCountFirstSLA: this.isPriorityMode })
+        // Load Active Cases (isStopped = false)
+        if (this.offset === 0) this.isLoadingModal = true; else this.isLoadingMore = true;
+        
+        getCaseList({ ...commonParams, offset: this.offset, isStopped: false })
         .then(data => {
             if (rid !== this.lastRequestId) return;
-            
-            const flattened = this.flattenData(data).map(c => {
-                try {
-                    let sv = { RT_Remaining: '/', AT_Remaining: '/', UoW_Remaining: '/', Fx_Remaining: '/' };
-                    let slaStatusMap = {};
-
-                    const ms = c.CaseMilestones || (c.CaseMilestones ? c.CaseMilestones.records : []);
-                    const mlist = Array.isArray(ms) ? ms : (ms.records || []);
-                    
-                    mlist.forEach(m => {
-                        const mt = m.MilestoneType;
-                        if (mt) {
-                            let s = '/';
-                            let cellClass = '';
-                            const completed = m.IsCompleted === true || m.isCompleted === true;
-                            const violated = m.IsViolated === true || m.isViolated === true;
-                            const target = m.TargetDate || m.targetDate;
-                            
-                            if (completed) {
-                                s = violated ? 'Violated' : 'Completed';
-                                if (violated) cellClass = 'cell-sla-red';
-                            } else if (target) {
-                                s = this.calculateTimeRemaining(target);
-                                const now = new Date();
-                                const tgt = new Date(target);
-                                const diffMs = tgt - now;
-                                const h = diffMs / 36e5;
-                                
-                                if (h > this.greenThreshold) cellClass = 'cell-sla-green';
-                                else if (h > this.yellowThreshold) cellClass = 'cell-sla-yellow';
-                                else if (h > this.orangeThreshold) cellClass = 'cell-sla-orange';
-                                else cellClass = 'cell-sla-red';
-                            }
-
-                            const r = (v) => v === 'Violated' ? 4 : (v === '/' ? 0 : (v === 'Completed' ? 1 : 3));
-                            const upd = (o, n) => r(n) >= r(o) ? n : o;
-                            
-                            if (mt.Name === 'Response Time') { sv.RT_Remaining = upd(sv.RT_Remaining, s); if (cellClass) slaStatusMap['RT_Remaining'] = cellClass; }
-                            else if (mt.Name === 'Analysis and Timeline') { sv.AT_Remaining = upd(sv.AT_Remaining, s); if (cellClass) slaStatusMap['AT_Remaining'] = cellClass; }
-                            else if (mt.Name === 'Update or Workaround') { sv.UoW_Remaining = upd(sv.UoW_Remaining, s); if (cellClass) slaStatusMap['UoW_Remaining'] = cellClass; }
-                            else if (mt.Name === 'Fix Resolution') { sv.Fx_Remaining = upd(sv.Fx_Remaining, s); if (cellClass) slaStatusMap['Fx_Remaining'] = cellClass; }
-                        }
-                    });
-                    
-                    let rc = 'table-row ' + ('priority-' + (c.Priority ? c.Priority.toLowerCase() : 'normal'));
-                    
-                    // Assign SLA values to row object for sorting
-                    c['RT_Remaining'] = sv.RT_Remaining;
-                    c['AT_Remaining'] = sv.AT_Remaining;
-                    c['UoW_Remaining'] = sv.UoW_Remaining;
-                    c['Fx_Remaining'] = sv.Fx_Remaining;
-
-                    let jiraDetails = [];
-                    const jd = c.Jira_Tickets__r;
-                    const tickets = Array.isArray(jd) ? jd : (jd ? (jd.records || []) : []);
-                    if (false && tickets && tickets.length > 0) {
-                        jiraDetails = tickets.map((j, index) => ({
-                            id: j.Id, name: j.Name, url: `https://aviobook.atlassian.net/browse/${j.Name}`,
-                            status: j.AVB_Status__c || '-', priority: j.AVB_Priority__c || '-', fixVersion: j.AVB_Fix_Versions__c || '-', assignee: j.AVB_Assignee__c || '-',
-                            itemClass: index % 2 === 0 ? 'jira-item-even' : 'jira-item-odd'
-                        }));
-                    }
-                    const cells = this.columns.map(col => {
-                        const recordValue = sv[col.fieldName] !== undefined ? sv[col.fieldName] : c[col.fieldName];
-                        let displayValue = recordValue;
-                        const isJira = !!col.isJira;
-                        
-                        const cellSlaClass = slaStatusMap[col.fieldName] || '';
-
-                        if (isJira) {
-                             displayValue = tickets ? tickets.map(j => j.Name).join(', ') : '';
-                             c[col.fieldName] = displayValue; // For sorting
-                        } else if (displayValue && col.fieldName.toLowerCase().includes('date')) {
-                            displayValue = this.formatDate(displayValue);
-                        }
-                        return { 
-                            key: col.fieldName, 
-                            value: displayValue, 
-                            isUrl: col.type === 'button', 
-                            isBoolean: col.type === 'boolean', 
-                            isJira: isJira, 
-                            checkboxClass: col.type === 'boolean' ? (recordValue ? 'custom-checkbox checked' : 'custom-checkbox') : '',
-                            cellClass: cellSlaClass
-                        };
-                    });
-                    return { ...c, rowClass: rc, cells: cells, jiraDetails: jiraDetails, hasJiraDetails: jiraDetails.length > 0, jiraKey: c.Id + '-jira' };
-                } catch (err) {
-                    console.error('Row mapping error', err);
-                    return { ...c, rowClass: 'table-row', cells: [], hasJiraDetails: false };
-                }
-            });
-            this.modalData = (off === 0 ? [] : this.modalData).concat(flattened);
+            const processed = this.processRowData(data);
+            this.modalData = (this.offset === 0 ? [] : this.modalData).concat(processed);
             this.isMoreDataAvailable = data.length === this.limit;
         })
-        .catch(e => this.handleError('Error', e)).finally(() => { if (rid === this.lastRequestId) { this.isLoadingModal = false; this.isLoadingMore = false; } });
+        .catch(e => this.handleError('Error', e))
+        .finally(() => { if (rid === this.lastRequestId) { this.isLoadingModal = false; this.isLoadingMore = false; } });
+
+        // Load Stopped Cases (isStopped = true)
+        // Only load stopped cases if we are doing an initial load or if explicitly paging them
+        // For simplicity, we'll auto-load them initially.
+        if (this.stoppedOffset === 0) {
+            this.isLoadingStopped = true;
+            getCaseList({ ...commonParams, offset: this.stoppedOffset, isStopped: true })
+            .then(data => {
+                if (rid !== this.lastRequestId) return;
+                const processed = this.processRowData(data);
+                this.stoppedData = (this.stoppedOffset === 0 ? [] : this.stoppedData).concat(processed);
+                this.isMoreStoppedAvailable = data.length === this.limit;
+            })
+            .catch(e => this.handleError('Error Stopped', e))
+            .finally(() => { if (rid === this.lastRequestId) this.isLoadingStopped = false; });
+        }
+    }
+    
+    loadMoreStopped() {
+        if (this.isLoadingStopped || !this.isMoreStoppedAvailable) return;
+        this.isLoadingStopped = true;
+        const fieldsToQuery = this.columnFields.split(',').map(f => f.trim().split(':')[0].trim());
+        if (!fieldsToQuery.includes('Priority')) fieldsToQuery.push('Priority');
+        const realFields = fieldsToQuery.filter(f => !['RT_Remaining', 'AT_Remaining', 'UoW_Remaining', 'Fx_Remaining'].includes(f));
+        
+        getCaseList({ 
+            dashboardId: this.currentDashboardId, accountId: null, fields: realFields, 
+            sortField: this.sortedBy.replaceAll(DOT_SEP, '.'), sortOrder: this.sortedDirection, 
+            searchTerm: '', onlyMine: false, priorityFilter: [], limitCount: this.limit, 
+            advancedField: '', advancedValue: '', hasJira: false, statusFilter: [], 
+            unresponsiveFilter: [], onlyCountFirstSLA: this.isPriorityMode,
+            offset: this.stoppedOffset, isStopped: true 
+        })
+        .then(data => {
+            const processed = this.processRowData(data);
+            this.stoppedData = this.stoppedData.concat(processed);
+            this.isMoreStoppedAvailable = data.length === this.limit;
+        })
+        .catch(e => this.handleError('Error Stopped', e))
+        .finally(() => { this.isLoadingStopped = false; });
     }
 
     calculateTimeRemaining(tstr) {
@@ -470,11 +534,21 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         this.buildColumns(); 
     }
     viewCase(e) { const id = e.currentTarget.dataset.id; try { openTab({ recordId: id, focus: true }); } catch (er) { this[NavigationMixin.Navigate]({ type: 'standard__recordPage', attributes: { recordId: id, actionName: 'view' } }); } }
-    closeModal() { this.isModalOpen = false; }
+    closeModal() { 
+        this.isModalOpen = false; 
+        if (this._escapeHandler) {
+            window.removeEventListener('keydown', this._escapeHandler);
+            this._escapeHandler = null;
+        }
+    }
     handleStopPropagation(e) { e.stopPropagation(); }
     handleTableScroll(e) { const t = e.target, b = t.scrollHeight - t.scrollTop - t.clientHeight; if (b < 50 && this.isMoreDataAvailable && !this.isLoadingModal && !this.isLoadingMore) { this.offset += this.limit; this.loadModalData(); } }
     
     formatDate(ds) { if (!ds) return ''; const d = new Date(ds); if (isNaN(d.getTime())) return ds; const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+    
+    get activeCasesTitle() { return `Active Cases (${this.modalData.length}${this.isMoreDataAvailable ? '+' : ''})`; }
+    get stoppedCasesTitle() { return `Cases Waiting for Customer (${this.stoppedData.length}${this.isMoreStoppedAvailable ? '+' : ''})`; }
+
     get sortIcon() { return this.sortedDirection === 'asc' ? 'utility:arrowup' : 'utility:arrowdown'; }
     handleError(t, e) { this.dispatchEvent(new ShowToastEvent({ title: t, message: e.body?.message || e.message, variant: 'error' })); }
 }

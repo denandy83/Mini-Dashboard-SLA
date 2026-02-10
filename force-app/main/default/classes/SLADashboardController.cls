@@ -54,12 +54,12 @@ public without sharing class SLADashboardController {
         // We use CaseMilestone to find running milestones (IsCompleted = false) that are not stopped (Case.IsStopped = false)
         // GLOBAL query (no account filter). Exclude Solved/Closed cases.
         // We fetch ALL running milestones sorted by CaseId and TargetDate to allow frontend to filter/prioritize.
-        String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate ' +
-                       'FROM CaseMilestone ' +
-                       'WHERE IsCompleted = false AND Case.IsStopped = false ' + 
-                       'AND Case.Status NOT IN (\'Solved\', \'Closed\') ' +
-                       'AND MilestoneType.Name IN :MILESTONE_NAMES ' +
-                       'ORDER BY CaseId, TargetDate ASC';
+                String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate ' +
+                               'FROM CaseMilestone ' +
+                               'WHERE IsCompleted = false ' + 
+                               'AND Case.Status NOT IN (\'Solved\', \'Closed\') ' +
+                               'AND MilestoneType.Name IN :MILESTONE_NAMES ' +
+                               'ORDER BY CaseId, TargetDate ASC';
         
         for (SObject obj : Database.query(query, AccessLevel.USER_MODE)) {
             CaseMilestone cm = (CaseMilestone)obj;
@@ -121,7 +121,7 @@ public without sharing class SLADashboardController {
     }
 
     @AuraEnabled
-    public static List<Case> getCaseList(String dashboardId, Id accountId, List<String> fields, String sortField, String sortOrder, String searchTerm, Integer offset, String advancedField, String advancedValue, Boolean onlyMine, Integer limitCount, List<String> priorityFilter, Boolean hasJira, List<String> statusFilter, List<String> unresponsiveFilter, Boolean onlyCountFirstSLA) {
+    public static List<Case> getCaseList(String dashboardId, Id accountId, List<String> fields, String sortField, String sortOrder, String searchTerm, Integer offset, String advancedField, String advancedValue, Boolean onlyMine, Integer limitCount, List<String> priorityFilter, Boolean hasJira, List<String> statusFilter, List<String> unresponsiveFilter, Boolean onlyCountFirstSLA, Boolean isStopped) {
         List<String> statuses = (statusFilter != null && !statusFilter.isEmpty()) ? statusFilter : statusMap.get(dashboardId);
         Boolean isMilestone = MILESTONE_NAMES.contains(dashboardId);
         if (statuses == null && !isMilestone) return new List<Case>();
@@ -162,13 +162,17 @@ public without sharing class SLADashboardController {
         String fieldString = String.join(fieldList, ', ');
         Integer finalLimit = (limitCount != null && limitCount > 0) ? limitCount : 20;
         Integer finalOffset = (offset != null ? offset : 0);
+        
+        // Define stopped filter value
+        Boolean stoppedVal = (isStopped != null ? isStopped : false);
 
         if (targetMilestoneForSort != null) {
             // Special SLA Sorting Logic
             String direction = (String.isNotBlank(sortOrder) && sortOrder.toLowerCase() == 'desc' ? 'DESC' : 'ASC');
             
             // Build sub-query filters for CaseMilestone to match the drill-down criteria
-            String mQuery = 'SELECT CaseId FROM CaseMilestone WHERE IsCompleted = false AND Case.IsStopped = false ' +
+            String mQuery = 'SELECT CaseId FROM CaseMilestone WHERE IsCompleted = false ' +
+                            'AND Case.IsStopped = :stoppedVal ' +
                             'AND Case.Status NOT IN (\'Solved\', \'Closed\') ' +
                             'AND MilestoneType.Name = :targetMilestoneForSort ';
             
@@ -180,12 +184,9 @@ public without sharing class SLADashboardController {
             
             // Handle onlyCountFirstSLA priority filtering
             if (onlyCountFirstSLA == true) {
-                // This is complex: we need to find cases where THIS milestone is the FIRST one.
-                // For simplicity and performance, we'll fetch a larger set and filter in memory, or accept all if it matches the current dashboardId
-                // Actually, if we are in 'onlyCountFirstSLA' mode, we already identified the winning cases in counts.
-                // We should match that logic here.
                 Set<Id> winnerCaseIds = new Set<Id>();
-                String winQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false AND Case.IsStopped = false ' +
+                String winQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false ' +
+                                  'AND Case.IsStopped = :stoppedVal ' +
                                   'AND Case.Status NOT IN (\'Solved\', \'Closed\') AND MilestoneType.Name IN :MILESTONE_NAMES ORDER BY CaseId, TargetDate ASC';
                 Id lastCaseId = null;
                 for (SObject obj : Database.query(winQuery)) {
@@ -217,10 +218,15 @@ public without sharing class SLADashboardController {
         String query = 'SELECT ' + fieldString + ' FROM Case WHERE ';
         List<String> whereClauses = new List<String>();
         if (statuses != null) whereClauses.add('Status IN :statuses');
+        
+        // Add IsStopped filter
+        whereClauses.add('IsStopped = :stoppedVal');
+        
         if (isMilestone) {
              if (onlyCountFirstSLA == true) {
                  Set<Id> validCaseIds = new Set<Id>();
-                 String mQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false AND Case.IsStopped = false ' +
+                 String mQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false ' +
+                                 'AND Case.IsStopped = :stoppedVal ' +
                                  'AND Case.Status NOT IN (\'Solved\', \'Closed\') AND MilestoneType.Name IN :MILESTONE_NAMES ORDER BY CaseId, TargetDate ASC';
                  Id lastCaseId = null;
                  for (SObject obj : Database.query(mQuery)) {
@@ -229,7 +235,7 @@ public without sharing class SLADashboardController {
                  }
                  whereClauses.add('Id IN :validCaseIds');
              } else {
-                 whereClauses.add('Id IN (SELECT CaseId FROM CaseMilestone WHERE MilestoneType.Name = :dashboardId AND IsCompleted = false AND Case.IsStopped = false)');
+                 whereClauses.add('Id IN (SELECT CaseId FROM CaseMilestone WHERE MilestoneType.Name = :dashboardId AND IsCompleted = false)');
                  whereClauses.add('Status NOT IN (\'Solved\', \'Closed\')');
              }
         }
