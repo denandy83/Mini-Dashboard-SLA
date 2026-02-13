@@ -648,33 +648,26 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         this.modalData = data;
         this.stoppedData = stoppedData;
     }
-    viewCase(e) { 
-        const id = e.currentTarget.dataset.id;
-        const pageRef = {
-            type: 'standard__recordPage',
-            attributes: {
-                recordId: id,
-                actionName: 'view'
-            }
-        };
-
-        this.log('[SLA Dashboard] viewCase clicked. ID:', id, 'IsConsole:', this.isConsoleNavigation?.data);
-
-        if (this.isConsoleNavigation && this.isConsoleNavigation.data) {
-            this[NavigationMixin.GenerateUrl](pageRef).then(url => {
-                this.log('[SLA Dashboard] Generated URL:', url);
-                openTab({
-                    url: url,
-                    focus: true
-                }).then((tabId) => {
-                    this.log('[SLA Dashboard] openTab success. Tab ID:', tabId);
-                }).catch(err => {
-                    this.error('[SLA Dashboard] openTab failed', err);
-                    this[NavigationMixin.Navigate](pageRef);
-                });
+    async viewCase(event) {
+        const id = event.currentTarget.dataset.id;
+        this.log('[SLA Dashboard] viewCase clicked. ID:', id);
+        
+        try {
+            // Attempt to open in a new Console tab directly
+            // We do not check isConsoleNavigation here to avoid race conditions or false negatives.
+            // If we are not in a console, openTab will throw/reject, and we fall back to standard nav.
+            await openTab({ recordId: id, focus: true });
+            this.log('[SLA Dashboard] openTab success');
+        } catch (e) {
+            this.error('[SLA Dashboard] openTab failed (or not in console), using fallback', e);
+            // Fallback for standard navigation
+            this[NavigationMixin.Navigate]({
+                type: 'standard__recordPage',
+                attributes: {
+                    recordId: id,
+                    actionName: 'view'
+                }
             });
-        } else {
-            this[NavigationMixin.Navigate](pageRef); 
         }
     }
     closeModal() { 
