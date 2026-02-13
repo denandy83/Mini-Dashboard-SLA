@@ -8,7 +8,7 @@
 
 .dashboard-container { background: #f3f4f6; border-radius: 8px; font-family: 'Salesforce Sans', Arial, sans-serif; }
 .dashboard-row { margin-bottom: 1rem; }
-.row-label { font-size: 0.85rem; font-weight: 700; color: #4b5563; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.025em; border-left: 4px solid #3b82f6; padding-left: 0.75rem; }
+.row-label { font-size: 0.85rem; font-weight: 700; color: #4b5563; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.025em; }
 .status-grid { display: flex; justify-content: space-around; flex-wrap: nowrap; gap: 1rem; }
 .gauge-wrapper { cursor: pointer; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; flex: 1 1 0; min-width: 0; }
 .gauge-wrapper:hover { transform: scale(1.05); }
@@ -23,7 +23,7 @@
 .gauge-label { font-size: 4px; text-anchor: middle; fill: #666; text-transform: uppercase; }
 
 .red-flashing {
-    animation: flash-red 4s step-start infinite;
+    animation: flash-red 2s step-start infinite;
 }
 
 @keyframes flash-red {

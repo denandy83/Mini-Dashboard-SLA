@@ -3,7 +3,7 @@ import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { getObjectInfo } from 'lightning/uiObjectInfoApi';
 import CASE_OBJECT from '@salesforce/schema/Case';
-import { EnclosingTabId, openTab, onTabFocused } from 'lightning/platformWorkspaceApi';
+import { EnclosingTabId, onTabFocused, openTab, IsConsoleNavigation } from 'lightning/platformWorkspaceApi';
 import getDashboardData from '@salesforce/apex/SLADashboardController.getDashboardData';
 import getCaseList from '@salesforce/apex/SLADashboardController.getCaseList';
 
@@ -18,6 +18,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     @api yellowThreshold = 12;
     @api orangeThreshold = 1;
     @api columnFields = 'CaseNumber:100, RT_Remaining:120, AT_Remaining:120, UoW_Remaining:120, Fx_Remaining:120, Subject, Priority';
+    @api enableLogs = false;
 
     @track milestoneItems = [ 
         { id: 'Response Time', fullLabel: 'RT', shortLabel: 'RT', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
@@ -35,19 +36,72 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     flashingInterval;
 
     @wire(EnclosingTabId) enclosingTabId;
+    @wire(IsConsoleNavigation) isConsoleNavigation;
     @wire(getObjectInfo, { objectApiName: CASE_OBJECT }) caseInfo;
 
-    connectedCallback() { this.fetchData(); this.startPolling(); this.startFlashing(); if (onTabFocused) { onTabFocused((event) => { const tid = this.enclosingTabId?.data; if (!tid || event.tabId === tid) { this.fetchData(); this.startPolling(); } else { this.stopPolling(); } }); } }
+    log(...args) { if (this.enableLogs) console.log(...args); }
+    error(...args) { if (this.enableLogs) console.error(...args); }
+
+    connectedCallback() { 
+        this.fetchData();
+        
+        // Use IntersectionObserver to robustly detect when this specific tab becomes visible/hidden
+        if ('IntersectionObserver' in window) {
+            this._observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        this.log('[SLA Dashboard] Visibility Detected (IntersectionObserver). Refreshing & Polling.');
+                        this.fetchData();
+                        this.startPolling();
+                        this.startFlashing();
+                    } else {
+                        // this.log('[SLA Dashboard] Component Hidden. Stopping Poll.');
+                        this.stopPolling();
+                        this.stopFlashing();
+                    }
+                });
+            }, { threshold: 0.1 }); // Trigger when 10% visible
+            
+            // Observe the host element
+            this._observer.observe(this.template.host);
+        } else {
+            // Fallback for older environments
+            this.startPolling();
+            this.startFlashing();
+        }
+    }
+    
     disconnectedCallback() {
         this.stopPolling();
         this.stopFlashing();
+        if (this._observer) {
+            this._observer.disconnect();
+            this._observer = null;
+        }
         if (this._escapeHandler) {
             window.removeEventListener('keydown', this._escapeHandler);
         }
     }
-    startPolling() { this.stopPolling(); this.isPollingEnabled = true; this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); }
-    stopPolling() { this.isPollingEnabled = false; if (this.pollingTimeout) clearTimeout(this.pollingTimeout); }
-    _performPoll() { if (!this.isPollingEnabled) return; this.fetchData().finally(() => { if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); }); }
+
+    startPolling() {  
+        this.stopPolling(); 
+        this.isPollingEnabled = true; 
+        this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000); 
+    }
+    
+    stopPolling() { 
+        this.isPollingEnabled = false; 
+        if (this.pollingTimeout) clearTimeout(this.pollingTimeout); 
+    }
+    
+    _performPoll() { 
+        if (!this.isPollingEnabled) return; 
+        
+        // Just fetch. If we are hidden, the IntersectionObserver would have called stopPolling().
+        this.fetchData().finally(() => {
+            if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000);
+        });
+    }
 
     startFlashing() {
         this.stopFlashing();
@@ -58,7 +112,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     stopFlashing() { if (this.flashingInterval) clearInterval(this.flashingInterval); }
 
     fetchData() { 
-        console.log(`[SLA Dashboard Refresh] Tab: ${this.enclosingTabId?.data || 'Unknown'}, Time: ${new Date().toLocaleString()}`);
+        this.log(`[SLA Dashboard Refresh] Tab: ${this.enclosingTabId?.data || 'Unknown'}, Time: ${new Date().toLocaleString()}`);
         return getDashboardData({ accountId: null }).then(result => { if (result) { this.milestoneList = result.milestoneList || []; this.computeMilestoneCounts(); } }).catch(e => this.handleError('Load Error', e)); 
     }
     handleToggleSLA(e) { this.isPriorityMode = e.target.checked; this.computeMilestoneCounts(); }
@@ -224,7 +278,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             });
             this.columns = cols;
         } catch (e) {
-            console.error('buildColumns error', e);
+            this.error('buildColumns error', e);
             this.columns = [
                 { label: 'Case Number', fieldName: 'CaseNumber', type: 'button', style: 'width: 100px;' },
                 { label: 'Subject', fieldName: 'Subject', type: 'text' }
@@ -333,7 +387,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                 });
                 return { ...c, rowClass: rc, cells: cells, jiraDetails: jiraDetails, hasJiraDetails: jiraDetails.length > 0, jiraKey: c.Id + '-jira' };
             } catch (err) {
-                console.error('Row mapping error', err);
+                this.error('Row mapping error', err);
                 return { ...c, rowClass: 'table-row', cells: [], hasJiraDetails: false };
             }
         });
@@ -594,7 +648,35 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         this.modalData = data;
         this.stoppedData = stoppedData;
     }
-    viewCase(e) { const id = e.currentTarget.dataset.id; try { openTab({ recordId: id, focus: true }); } catch (er) { this[NavigationMixin.Navigate]({ type: 'standard__recordPage', attributes: { recordId: id, actionName: 'view' } }); } }
+    viewCase(e) { 
+        const id = e.currentTarget.dataset.id;
+        const pageRef = {
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: id,
+                actionName: 'view'
+            }
+        };
+
+        this.log('[SLA Dashboard] viewCase clicked. ID:', id, 'IsConsole:', this.isConsoleNavigation?.data);
+
+        if (this.isConsoleNavigation && this.isConsoleNavigation.data) {
+            this[NavigationMixin.GenerateUrl](pageRef).then(url => {
+                this.log('[SLA Dashboard] Generated URL:', url);
+                openTab({
+                    url: url,
+                    focus: true
+                }).then((tabId) => {
+                    this.log('[SLA Dashboard] openTab success. Tab ID:', tabId);
+                }).catch(err => {
+                    this.error('[SLA Dashboard] openTab failed', err);
+                    this[NavigationMixin.Navigate](pageRef);
+                });
+            });
+        } else {
+            this[NavigationMixin.Navigate](pageRef); 
+        }
+    }
     closeModal() { 
         this.isModalOpen = false; 
         if (this._escapeHandler) {
