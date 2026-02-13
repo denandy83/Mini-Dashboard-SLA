@@ -20,7 +20,7 @@
 .gauge-segment.yellow { stroke: #fdd835; }
 .gauge-segment.green { stroke: #66bb6a; }
 .gauge-count { font-size: 8px; font-weight: bold; text-anchor: middle; fill: #333; }
-.gauge-label { font-size: 4px; text-anchor: middle; fill: #666; text-transform: uppercase; }
+.gauge-label { font-size: 4px; text-anchor: middle; fill: #666; }
 
 .red-flashing {
     animation: flash-red 2s step-start infinite;
