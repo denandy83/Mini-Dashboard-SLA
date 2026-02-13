@@ -1,18 +1,47 @@
 <template>
     <div class="dashboard-container slds-p-around_small">
-        <!-- SLA Overview Row -->
-        <div class="dashboard-row">
+        <!-- Header Row -->
+        <div class="dashboard-row" style="margin-bottom: 0.5rem;">
             <div class="row-label" style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; width: 100%;">
                 <div>SLA Overview</div>
                 <div style="display: flex; align-items: center; text-transform: none; font-weight: normal;">
-                    <span class="slds-m-right_x-small" style="font-size: 0.7rem;">Count First SLA Only</span>
+                    <span class="slds-m-right_x-small" style="font-size: 0.7rem;">Show Paused SLAs</span>
                     <div style="transform: scale(0.8); transform-origin: right center;">
-                        <lightning-input type="toggle" variant="label-hidden" checked={isPriorityMode} onchange={handleToggleSLA} message-toggle-active="" message-toggle-inactive=""></lightning-input>
+                        <lightning-input type="toggle" variant="label-hidden" checked={showStoppedRow} onchange={handleToggleStopped} message-toggle-active="" message-toggle-inactive=""></lightning-input>
                     </div>
                 </div>
             </div>
-            <div class="status-grid">
-                <template for:each={milestoneItems} for:item="item">
+        </div>
+
+        <!-- Active SLAs Row -->
+        <div class="row-label slds-text-title_caps slds-m-bottom_xx-small" style="font-size: 0.7rem; color: #666;">Active SLAs</div>
+        <div class="dashboard-row status-grid">
+            <template for:each={activeMilestones} for:item="item">
+                <div key={item.id} class="gauge-wrapper" onclick={handleItemClick} data-id={item.id} title={item.tooltip}>
+                    <svg viewBox="0 0 40 40" class="gauge-svg">
+                        <circle class="gauge-bg" cx="20" cy="20" r="15.9155"></circle>
+                        <template lwc:if={item.gauge.hasData}>
+                            <circle class="gauge-segment red" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.red.array} stroke-dashoffset={item.gauge.red.offset}></circle>
+                            <circle class="gauge-segment orange" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.orange.array} stroke-dashoffset={item.gauge.orange.offset}></circle>
+                            <circle class="gauge-segment yellow" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.yellow.array} stroke-dashoffset={item.gauge.yellow.offset}></circle>
+                            <circle class="gauge-segment green" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.green.array} stroke-dashoffset={item.gauge.green.offset}></circle>
+                        </template>
+                        
+                        <text x="20" y="20" class="gauge-count" if:false={item.isRedZone}>{item.count}</text>
+                        <text x="20" y="20" class="gauge-count red-flashing" if:true={item.isRedZone}>{item.count}</text>
+                        
+                        <text x="20" y="28" class="gauge-label" if:false={item.isRedZone}>{item.shortLabel}</text>
+                        <text x="20" y="28" class="gauge-label red-flashing" if:true={item.isRedZone}>{item.shortLabel}</text>
+                    </svg>
+                </div>
+            </template>
+        </div>
+
+        <!-- Stopped SLAs Row -->
+        <template lwc:if={showStoppedRow}>
+            <div class="row-label slds-text-title_caps slds-m-bottom_xx-small slds-m-top_small" style="font-size: 0.7rem; color: #666;">Paused SLAs</div>
+            <div class="dashboard-row status-grid">
+                <template for:each={stoppedMilestones} for:item="item">
                     <div key={item.id} class="gauge-wrapper" onclick={handleItemClick} data-id={item.id} title={item.tooltip}>
                         <svg viewBox="0 0 40 40" class="gauge-svg">
                             <circle class="gauge-bg" cx="20" cy="20" r="15.9155"></circle>
@@ -22,17 +51,14 @@
                                 <circle class="gauge-segment yellow" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.yellow.array} stroke-dashoffset={item.gauge.yellow.offset}></circle>
                                 <circle class="gauge-segment green" cx="20" cy="20" r="15.9155" stroke-dasharray={item.gauge.green.array} stroke-dashoffset={item.gauge.green.offset}></circle>
                             </template>
-                            <text x="20" y="20" class="gauge-count" data-flashing={item.isRedZone}></text>
-                            <text x="20" y="20" class="gauge-count" if:false={item.isRedZone}>{item.count}</text>
-                            <text x="20" y="20" class="gauge-count red-flashing" if:true={item.isRedZone}>{item.count}</text>
                             
-                            <text x="20" y="28" class="gauge-label" if:false={item.isRedZone}>{item.shortLabel}</text>
-                            <text x="20" y="28" class="gauge-label red-flashing" if:true={item.isRedZone}>{item.shortLabel}</text>
+                            <text x="20" y="20" class="gauge-count">{item.count}</text>
+                            <text x="20" y="28" class="gauge-label">{item.shortLabel}</text>
                         </svg>
                     </div>
                 </template>
             </div>
-        </div>
+        </template>
     </div>
 
     <!-- Drill-down Modal -->

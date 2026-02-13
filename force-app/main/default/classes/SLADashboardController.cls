@@ -127,7 +127,7 @@ public without sharing class SLADashboardController {
     }
 
     @AuraEnabled
-    public static List<Case> getCaseList(String dashboardId, Id accountId, List<String> fields, String sortField, String sortOrder, String searchTerm, Integer offset, String advancedField, String advancedValue, Boolean onlyMine, Integer limitCount, List<String> priorityFilter, Boolean hasJira, List<String> statusFilter, List<String> unresponsiveFilter, Boolean onlyCountFirstSLA, Boolean isStopped) {
+    public static List<Case> getCaseList(String dashboardId, Id accountId, List<String> fields, String sortField, String sortOrder, String searchTerm, Integer offset, String advancedField, String advancedValue, Boolean onlyMine, Integer limitCount, List<String> priorityFilter, Boolean hasJira, List<String> statusFilter, List<String> unresponsiveFilter, Boolean isStopped) {
         List<String> statuses = (statusFilter != null && !statusFilter.isEmpty()) ? statusFilter : statusMap.get(dashboardId);
         Boolean isMilestone = MILESTONE_NAMES.contains(dashboardId);
         if (statuses == null && !isMilestone) return new List<Case>();
@@ -188,23 +188,6 @@ public without sharing class SLADashboardController {
             if (priorityFilter != null && !priorityFilter.isEmpty()) mQuery += ' AND Case.Priority IN :priorityFilter';
             if (hasJira == true) mQuery += ' AND CaseId IN (SELECT AVB_Case__c FROM AVB_Jira_Ticket__c)';
             
-            // Handle onlyCountFirstSLA priority filtering
-            if (onlyCountFirstSLA == true) {
-                Set<Id> winnerCaseIds = new Set<Id>();
-                String winQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false ' +
-                                  'AND Case.IsStopped = :stoppedVal ' +
-                                  'AND Case.Status NOT IN (\'Solved\', \'Closed\') AND MilestoneType.Name IN :MILESTONE_NAMES ORDER BY CaseId, TargetDate ASC';
-                Id lastCaseId = null;
-                for (SObject obj : Database.query(winQuery)) {
-                    CaseMilestone cm = (CaseMilestone)obj;
-                    if (cm.CaseId != lastCaseId) {
-                        if (cm.MilestoneType.Name == targetMilestoneForSort) winnerCaseIds.add(cm.CaseId);
-                        lastCaseId = cm.CaseId;
-                    }
-                }
-                mQuery += ' AND CaseId IN :winnerCaseIds';
-            }
-
             mQuery += ' ORDER BY TargetDate ' + direction + ' NULLS LAST LIMIT ' + finalLimit + ' OFFSET ' + finalOffset;
             
             List<Id> sortedCaseIds = new List<Id>();
@@ -229,21 +212,8 @@ public without sharing class SLADashboardController {
         whereClauses.add('IsStopped = :stoppedVal');
         
         if (isMilestone) {
-             if (onlyCountFirstSLA == true) {
-                 Set<Id> validCaseIds = new Set<Id>();
-                 String mQuery = 'SELECT CaseId, MilestoneType.Name FROM CaseMilestone WHERE IsCompleted = false ' +
-                                 'AND Case.IsStopped = :stoppedVal ' +
-                                 'AND Case.Status NOT IN (\'Solved\', \'Closed\') AND MilestoneType.Name IN :MILESTONE_NAMES ORDER BY CaseId, TargetDate ASC';
-                 Id lastCaseId = null;
-                 for (SObject obj : Database.query(mQuery)) {
-                     CaseMilestone cm = (CaseMilestone)obj;
-                     if (cm.CaseId != lastCaseId) { if (cm.MilestoneType.Name == dashboardId) validCaseIds.add(cm.CaseId); lastCaseId = cm.CaseId; }
-                 }
-                 whereClauses.add('Id IN :validCaseIds');
-             } else {
-                 whereClauses.add('Id IN (SELECT CaseId FROM CaseMilestone WHERE MilestoneType.Name = :dashboardId AND IsCompleted = false)');
-                 whereClauses.add('Status NOT IN (\'Solved\', \'Closed\')');
-             }
+             whereClauses.add('Id IN (SELECT CaseId FROM CaseMilestone WHERE MilestoneType.Name = :dashboardId AND IsCompleted = false)');
+             whereClauses.add('Status NOT IN (\'Solved\', \'Closed\')');
         }
         if (accountId != null) whereClauses.add('AccountId = :accountId');
         if (onlyMine == true) { Id currentUserId = UserInfo.getUserId(); whereClauses.add('OwnerId = :currentUserId'); }

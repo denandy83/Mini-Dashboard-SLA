@@ -20,16 +20,21 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
     @api columnFields = 'CaseNumber:100, RT_Remaining:120, AT_Remaining:120, UoW_Remaining:120, Fx_Remaining:120, Subject, Priority';
     @api enableLogs = false;
 
-    @track milestoneItems = [ 
-        { id: 'Response Time', fullLabel: 'RT', shortLabel: 'RT', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
-        { id: 'Analysis and Timeline', fullLabel: 'A&T', shortLabel: 'A&T', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
-        { id: 'Update or Workaround', fullLabel: 'UoW', shortLabel: 'UoW', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false }, 
-        { id: 'Fix Resolution', fullLabel: 'Fx', shortLabel: 'Fx', count: 0, tooltip: '', gauge: { hasData: false, red: {}, orange: {}, yellow: {}, green: {} }, isRedZone: false } 
+    @track activeMilestones = [];
+    @track stoppedMilestones = [];
+    
+    // Static configuration for the gauges
+    _milestoneConfig = [ 
+        { id: 'Response Time', fullLabel: 'RT', shortLabel: 'RT' }, 
+        { id: 'Analysis and Timeline', fullLabel: 'A&T', shortLabel: 'A&T' }, 
+        { id: 'Update or Workaround', fullLabel: 'UoW', shortLabel: 'UoW' }, 
+        { id: 'Fix Resolution', fullLabel: 'Fx', shortLabel: 'Fx' } 
     ];
 
-    @track milestoneList = []; @track isPriorityMode = false; @track isModalOpen = false; @track modalTitle = ''; @track modalData = []; @track stoppedData = []; @track columns = [];
+    @track milestoneList = []; @track isModalOpen = false; @track modalTitle = ''; @track modalData = []; @track stoppedData = []; @track columns = [];
     @track sortedBy = ''; @track sortedDirection = 'asc';
     @track isFlashingRed = false;
+    @track showStoppedRow = false;
     isLoadingModal = false; isLoadingMore = false; offset = 0; limit = 50; 
     isLoadingStopped = false; stoppedOffset = 0; isMoreStoppedAvailable = true;
     lastRequestId = 0; pollingTimeout; isPollingEnabled = false; currentDashboardId; isMoreDataAvailable = true;
@@ -83,6 +88,10 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         }
     }
 
+    handleToggleStopped(e) {
+        this.showStoppedRow = e.target.checked;
+    }
+
     startPolling() {  
         this.stopPolling(); 
         this.isPollingEnabled = true; 
@@ -99,7 +108,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         
         // Just fetch. If we are hidden, the IntersectionObserver would have called stopPolling().
         this.fetchData().finally(() => {
-            if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000);
+            if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => _performPoll(), (this.pollingFrequency || 60) * 1000);
         });
     }
 
@@ -115,88 +124,99 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         this.log(`[SLA Dashboard Refresh] Tab: ${this.enclosingTabId?.data || 'Unknown'}, Time: ${new Date().toLocaleString()}`);
         return getDashboardData({ accountId: null }).then(result => { if (result) { this.milestoneList = result.milestoneList || []; this.computeMilestoneCounts(); } }).catch(e => this.handleError('Load Error', e)); 
     }
-    handleToggleSLA(e) { this.isPriorityMode = e.target.checked; this.computeMilestoneCounts(); }
     
     computeMilestoneCounts() {
-        const sm = {}; 
-        this.milestoneItems.forEach(i => sm[i.id] = { 
-            count: 0, 
-            priMap: { Urgent: 0, High: 0, Normal: 0, Low: 0 },
-            buckets: { green: 0, yellow: 0, orange: 0, red: 0, activeRed: 0 }
+        // Initialize distinct stats objects for Active and Stopped
+        const smActive = {};
+        const smStopped = {};
+        
+        this._milestoneConfig.forEach(c => {
+            const initStat = {
+                id: c.id, fullLabel: c.fullLabel, shortLabel: c.shortLabel,
+                count: 0,
+                priMap: { Urgent: 0, High: 0, Normal: 0, Low: 0 },
+                buckets: { green: 0, yellow: 0, orange: 0, red: 0 }
+            };
+            smActive[c.id] = JSON.parse(JSON.stringify(initStat));
+            smStopped[c.id] = JSON.parse(JSON.stringify(initStat));
         });
         
-        let lastId = null;
         this.milestoneList.forEach(m => {
-            if (!this.isPriorityMode || m.caseId !== lastId) {
-                if (sm[m.mName]) { 
-                    sm[m.mName].count++; 
-                    let p = m.priority || 'Normal'; 
-                    if (sm[m.mName].priMap[p] !== undefined) sm[m.mName].priMap[p]++;
-                    
-                    let hoursLeft = -999;
+            // Determine which stats object to update
+            const targetSm = m.isStopped ? smStopped : smActive;
+            
+            if (targetSm[m.mName]) { 
+                const s = targetSm[m.mName];
+                s.count++; 
+                let p = m.priority || 'Normal'; 
+                if (s.priMap[p] !== undefined) s.priMap[p]++;
+                
+                let hoursLeft = -999;
 
-                    // Try to use Salesforce calculated TimeRemaining first (handles Stopped logic)
-                    // Format is typically MMM:SS (e.g., "429:11" means 429 minutes and 11 seconds)
-                    if (m.timeRemaining && m.timeRemaining.includes(':')) {
-                        const parts = m.timeRemaining.split(':');
-                        const totalMins = parseInt(parts[0], 10);
-                        if (!isNaN(totalMins)) {
-                            hoursLeft = totalMins / 60.0;
-                        }
+                if (m.timeRemaining && m.timeRemaining.includes(':')) {
+                    const parts = m.timeRemaining.split(':');
+                    const totalMins = parseInt(parts[0], 10);
+                    if (!isNaN(totalMins)) {
+                        hoursLeft = totalMins / 60.0;
                     }
-
-                    // Fallback to wall-clock time if explicit time not valid/present
-                    if (hoursLeft === -999 && m.targetDate) {
-                        const now = new Date();
-                        const tgt = new Date(m.targetDate);
-                        const diffMs = tgt - now;
-                        hoursLeft = diffMs / 36e5; 
-                    }
-                    
-                    if (hoursLeft > this.greenThreshold) sm[m.mName].buckets.green++;
-                    else if (hoursLeft > this.yellowThreshold) sm[m.mName].buckets.yellow++;
-                    else if (hoursLeft > this.orangeThreshold) sm[m.mName].buckets.orange++;
-                    else {
-                        sm[m.mName].buckets.red++;
-                        if (!m.isStopped) sm[m.mName].buckets.activeRed++;
-                    } 
                 }
-                lastId = m.caseId;
+
+                if (hoursLeft === -999 && m.targetDate) {
+                    const now = new Date();
+                    const tgt = new Date(m.targetDate);
+                    const diffMs = tgt - now;
+                    hoursLeft = diffMs / 36e5; 
+                }
+                
+                if (hoursLeft > this.greenThreshold) s.buckets.green++;
+                else if (hoursLeft > this.yellowThreshold) s.buckets.yellow++;
+                else if (hoursLeft > this.orangeThreshold) s.buckets.orange++;
+                else s.buckets.red++; 
             }
         });
 
-        this.milestoneItems = this.milestoneItems.map(i => {
-            const s = sm[i.id]; 
-            const tip = `Danger: ${s.buckets.red} | Warning: ${s.buckets.orange} | Attention: ${s.buckets.yellow} | OK: ${s.buckets.green}`;
-            const total = s.count > 0 ? s.count : 1; 
-            const pct = (val) => (val / total) * 100;
-            const rVal = pct(s.buckets.red);
-            const oVal = pct(s.buckets.orange);
-            const yVal = pct(s.buckets.yellow);
-            const gVal = pct(s.buckets.green);
-            const pRed = `${rVal} ${100 - rVal}`;
-            const oRed = 25;
-            const pOrg = `${oVal} ${100 - oVal}`;
-            const oOrg = 25 - rVal;
-            const pYel = `${yVal} ${100 - yVal}`;
-            const oYel = 25 - rVal - oVal;
-            const pGrn = `${gVal} ${100 - gVal}`;
-            const oGrn = 25 - rVal - oVal - yVal;
+        // Helper to process stats into view models
+        const processStats = (statsMap, isStoppedRow) => {
+            return this._milestoneConfig.map(c => {
+                const s = statsMap[c.id];
+                const tip = `Red: ${s.buckets.red} | Orange: ${s.buckets.orange} | Yellow: ${s.buckets.yellow} | Green: ${s.buckets.green}`;
+                const total = s.count > 0 ? s.count : 1;
+                const pct = (val) => (val / total) * 100;
+                
+                const rVal = pct(s.buckets.red);
+                const oVal = pct(s.buckets.orange);
+                const yVal = pct(s.buckets.yellow);
+                const gVal = pct(s.buckets.green);
+                
+                const pRed = `${rVal} ${100 - rVal}`;
+                const oRed = 25;
+                const pOrg = `${oVal} ${100 - oVal}`;
+                const oOrg = 25 - rVal;
+                const pYel = `${yVal} ${100 - yVal}`;
+                const oYel = 25 - rVal - oVal;
+                const pGrn = `${gVal} ${100 - gVal}`;
+                const oGrn = 25 - rVal - oVal - yVal;
 
-            return { 
-                ...i, 
-                count: s.count, 
-                tooltip: tip, 
-                isRedZone: s.buckets.activeRed > 0,
-                gauge: {
-                    red: { array: pRed, offset: oRed },
-                    orange: { array: pOrg, offset: oOrg },
-                    yellow: { array: pYel, offset: oYel },
-                    green: { array: pGrn, offset: oGrn },
-                    hasData: s.count > 0
-                }
-            };
-        });
+                // Only flash Red Zone for ACTIVE rows
+                const isRed = !isStoppedRow && s.buckets.red > 0;
+
+                return { 
+                    ...s, 
+                    tooltip: tip, 
+                    isRedZone: isRed,
+                    gauge: {
+                        red: { array: pRed, offset: oRed },
+                        orange: { array: pOrg, offset: oOrg },
+                        yellow: { array: pYel, offset: oYel },
+                        green: { array: pGrn, offset: oGrn },
+                        hasData: s.count > 0
+                    }
+                };
+            });
+        };
+
+        this.activeMilestones = processStats(smActive, false);
+        this.stoppedMilestones = processStats(smStopped, true);
     }
 
     handleItemClick(e) {
@@ -435,7 +455,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             sortField: this.sortedBy.replaceAll(DOT_SEP, '.'), sortOrder: this.sortedDirection, 
             searchTerm: '', onlyMine: false, priorityFilter: [], limitCount: this.limit, 
             advancedField: '', advancedValue: '', hasJira: false, statusFilter: [], 
-            unresponsiveFilter: [], onlyCountFirstSLA: this.isPriorityMode
+            unresponsiveFilter: []
         };
 
         // Load Active Cases (isStopped = false)
@@ -482,7 +502,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
             sortField: this.sortedBy.replaceAll(DOT_SEP, '.'), sortOrder: this.sortedDirection, 
             searchTerm: '', onlyMine: false, priorityFilter: [], limitCount: this.limit, 
             advancedField: '', advancedValue: '', hasJira: false, statusFilter: [], 
-            unresponsiveFilter: [], onlyCountFirstSLA: this.isPriorityMode,
+            unresponsiveFilter: [], 
             offset: this.stoppedOffset, isStopped: true 
         })
         .then(data => {
