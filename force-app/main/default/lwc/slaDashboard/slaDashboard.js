@@ -134,7 +134,19 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                     if (sm[m.mName].priMap[p] !== undefined) sm[m.mName].priMap[p]++;
                     
                     let hoursLeft = -999;
-                    if (m.targetDate) {
+
+                    // Try to use Salesforce calculated TimeRemaining first (handles Stopped logic)
+                    // Format is typically MMM:SS (e.g., "429:11" means 429 minutes and 11 seconds)
+                    if (m.timeRemaining && m.timeRemaining.includes(':')) {
+                        const parts = m.timeRemaining.split(':');
+                        const totalMins = parseInt(parts[0], 10);
+                        if (!isNaN(totalMins)) {
+                            hoursLeft = totalMins / 60.0;
+                        }
+                    }
+
+                    // Fallback to wall-clock time if explicit time not valid/present
+                    if (hoursLeft === -999 && m.targetDate) {
                         const now = new Date();
                         const tgt = new Date(m.targetDate);
                         const diffMs = tgt - now;
