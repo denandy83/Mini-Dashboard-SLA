@@ -31,6 +31,7 @@ public without sharing class SLADashboardController {
         @AuraEnabled public Datetime targetDate;
         @AuraEnabled public String timeRemaining;
         @AuraEnabled public String timeSinceTarget;
+        @AuraEnabled public Boolean isStopped;
     }
 
     public class DashboardData {
@@ -56,7 +57,7 @@ public without sharing class SLADashboardController {
         // We use CaseMilestone to find running milestones (IsCompleted = false) that are not stopped (Case.IsStopped = false)
         // GLOBAL query (no account filter). Exclude Solved/Closed cases.
         // We fetch ALL running milestones sorted by CaseId and TargetDate to allow frontend to filter/prioritize.
-                String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate, TimeRemainingInMins, TimeSinceTargetInMins ' +
+                String query = 'SELECT CaseId, MilestoneType.Name, Case.Priority, TargetDate, TimeRemainingInMins, TimeSinceTargetInMins, Case.IsStopped ' +
                                'FROM CaseMilestone ' +
                                'WHERE IsCompleted = false ' + 
                                'AND Case.Status NOT IN (\'Solved\', \'Closed\') ' +
@@ -72,6 +73,7 @@ public without sharing class SLADashboardController {
             info.targetDate = cm.TargetDate;
             info.timeRemaining = (String)cm.get('TimeRemainingInMins');
             info.timeSinceTarget = (String)cm.get('TimeSinceTargetInMins');
+            info.isStopped = cm.Case.IsStopped;
             results.add(info);
         }
         

@@ -122,7 +122,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         this.milestoneItems.forEach(i => sm[i.id] = { 
             count: 0, 
             priMap: { Urgent: 0, High: 0, Normal: 0, Low: 0 },
-            buckets: { green: 0, yellow: 0, orange: 0, red: 0 }
+            buckets: { green: 0, yellow: 0, orange: 0, red: 0, activeRed: 0 }
         });
         
         let lastId = null;
@@ -144,7 +144,10 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                     if (hoursLeft > this.greenThreshold) sm[m.mName].buckets.green++;
                     else if (hoursLeft > this.yellowThreshold) sm[m.mName].buckets.yellow++;
                     else if (hoursLeft > this.orangeThreshold) sm[m.mName].buckets.orange++;
-                    else sm[m.mName].buckets.red++; 
+                    else {
+                        sm[m.mName].buckets.red++;
+                        if (!m.isStopped) sm[m.mName].buckets.activeRed++;
+                    } 
                 }
                 lastId = m.caseId;
             }
@@ -172,7 +175,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                 ...i, 
                 count: s.count, 
                 tooltip: tip, 
-                isRedZone: s.buckets.red > 0,
+                isRedZone: s.buckets.activeRed > 0,
                 gauge: {
                     red: { array: pRed, offset: oRed },
                     orange: { array: pOrg, offset: oOrg },
