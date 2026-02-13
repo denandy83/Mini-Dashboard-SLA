@@ -179,7 +179,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         const processStats = (statsMap, isStoppedRow) => {
             return this._milestoneConfig.map(c => {
                 const s = statsMap[c.id];
-                const tip = `Red: ${s.buckets.red} | Orange: ${s.buckets.orange} | Yellow: ${s.buckets.yellow} | Green: ${s.buckets.green}`;
+                const tip = `Danger: ${s.buckets.red} | Warning: ${s.buckets.orange} | Attention: ${s.buckets.yellow} | OK: ${s.buckets.green}`;
                 const total = s.count > 0 ? s.count : 1;
                 const pct = (val) => (val / total) * 100;
                 
