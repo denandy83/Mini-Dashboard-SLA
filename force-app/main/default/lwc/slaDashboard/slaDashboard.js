@@ -348,10 +348,24 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                             if (violated) cellClass = 'cell-sla-red';
                         } else if (target) {
                             s = this.getSlaDisplayValue(m.TimeRemainingInMins, m.TimeSinceTargetInMins);
-                            const now = new Date();
-                            const tgt = new Date(target);
-                            const diffMs = tgt - now;
-                            const h = diffMs / 36e5;
+                            
+                            let h = -999;
+                            // Parse TimeRemainingInMins (Format: "MMM:SS" or "HH:MM" -> interpreted as Minutes)
+                            if (m.TimeRemainingInMins && m.TimeRemainingInMins.includes(':')) {
+                                const parts = m.TimeRemainingInMins.split(':');
+                                const totalMins = parseInt(parts[0], 10);
+                                if (!isNaN(totalMins)) {
+                                    h = totalMins / 60.0;
+                                }
+                            }
+                            
+                            // Fallback
+                            if (h === -999 && target) {
+                                const now = new Date();
+                                const tgt = new Date(target);
+                                const diffMs = tgt - now;
+                                h = diffMs / 36e5;
+                            }
                             
                             if (h > this.greenThreshold) cellClass = 'cell-sla-green';
                             else if (h > this.yellowThreshold) cellClass = 'cell-sla-yellow';
