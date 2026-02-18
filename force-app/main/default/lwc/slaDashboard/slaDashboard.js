@@ -108,7 +108,7 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
         
         // Just fetch. If we are hidden, the IntersectionObserver would have called stopPolling().
         this.fetchData().finally(() => {
-            if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => _performPoll(), (this.pollingFrequency || 60) * 1000);
+            if (this.isPollingEnabled) this.pollingTimeout = setTimeout(() => this._performPoll(), (this.pollingFrequency || 60) * 1000);
         });
     }
 
