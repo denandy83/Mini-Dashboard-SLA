@@ -419,8 +419,10 @@ export default class SlaDashboard extends NavigationMixin(LightningElement) {
                     const cellSlaClass = slaStatusMap[col.fieldName] || '';
 
                     if (isJira) {
-                            displayValue = ''; // Jira column content if needed
-                            c[col.fieldName] = displayValue; 
+                        const jiraData = c['Jira_Tickets__r'];
+                        const tickets = Array.isArray(jiraData) ? jiraData : (jiraData ? jiraData.records : null);
+                        displayValue = tickets ? tickets.map(j => j.Name).join(', ') : '';
+                        c[col.fieldName] = displayValue; 
                     } else if (displayValue && col.fieldName.toLowerCase().includes('date')) {
                         displayValue = this.formatDate(displayValue);
                     }
